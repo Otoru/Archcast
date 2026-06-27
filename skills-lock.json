@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "pencil-design": {
+      "source": "chiroro-jr/pencil-design-skill",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "7e243b4b047c4ff98b33c47d36e44d07e2aae90c0293f9d2a4ee48ea9694a839"
+    }
+  }
+}
