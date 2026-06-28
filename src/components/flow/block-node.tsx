@@ -1,6 +1,12 @@
 "use client";
 
-import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
+import {
+  Handle,
+  type Node,
+  type NodeProps,
+  Position,
+  useReactFlow,
+} from "@xyflow/react";
 import {
   Database,
   type LucideIcon,
@@ -9,8 +15,14 @@ import {
   Server,
   Smartphone,
   Wrench,
+  X,
 } from "lucide-react";
-import { createContext, type ReactNode, useContext } from "react";
+import {
+  createContext,
+  type MouseEvent,
+  type ReactNode,
+  useContext,
+} from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { type BlockPreset, getPreset, type Layer } from "@/engine";
@@ -64,12 +76,15 @@ export function BlockNodeShell({
   renderDot,
   selected = false,
   invalid = false,
+  onDelete,
 }: {
   preset: BlockPreset;
   meta: LayerMeta;
   renderDot: DotRenderer;
   selected?: boolean;
   invalid?: boolean;
+  /** Quando presente, mostra um X no canto superior direito que apaga o nó. */
+  onDelete?: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
   const Icon = meta.icon;
   const ins = preset.edges.in;
@@ -86,6 +101,17 @@ export function BlockNodeShell({
         invalid && "border-wf-destructive ring-wf-destructive",
       )}
     >
+      {onDelete ? (
+        <button
+          type="button"
+          aria-label={`Delete ${preset.label}`}
+          onClick={onDelete}
+          // nodrag: impede o RF de iniciar o arraste do nó ao clicar no X.
+          className="nodrag absolute -right-2 -top-2 z-10 inline-flex size-5 cursor-pointer items-center justify-center rounded-full border-2 border-wf-border bg-wf-surface text-wf-ink-soft shadow-sm transition-colors hover:border-wf-destructive hover:text-wf-destructive focus-visible:ring-2 focus-visible:ring-wf-focus"
+        >
+          <X className="size-3" aria-hidden="true" />
+        </button>
+      ) : null}
       <div className="flex items-center gap-2 px-3 pt-2">
         <Icon className="size-4 shrink-0 text-wf-ink-soft" aria-hidden="true" />
         <span className="truncate font-wf-heading text-sm text-wf-ink">
@@ -139,6 +165,7 @@ export function BlockNodeShell({
  */
 export function BlockNode({ id, data, selected }: NodeProps<BlockNode>) {
   const invalid = useContext(InvalidNodesContext).has(id);
+  const { deleteElements } = useReactFlow();
   const preset = getPreset(data.kind);
   if (!preset) {
     return (
@@ -179,6 +206,10 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNode>) {
       renderDot={renderDot}
       selected={selected}
       invalid={invalid}
+      onDelete={(event) => {
+        event.stopPropagation();
+        void deleteElements({ nodes: [{ id }] });
+      }}
     />
   );
 }

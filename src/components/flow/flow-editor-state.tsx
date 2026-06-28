@@ -36,6 +36,14 @@ export type FlowEditorState = {
   onEdgesChange: OnEdgesChange<Edge>;
   selectedNodeId: string | null;
   setSelectedNodeId: Dispatch<SetStateAction<string | null>>;
+  /**
+   * Contador que incrementa a cada clique em um nó no canvas — mesmo quando o
+   * nó clicado já era o selecionado. A shell observa isto para reabrir o
+   * inspector na seção de atributos a cada clique (mudar só `selectedNodeId`
+   * não dispararia, já que clicar no mesmo nó não muda o id).
+   */
+  nodeClickNonce: number;
+  notifyNodeClick: () => void;
   params: ChallengeParams;
   setParams: Dispatch<SetStateAction<ChallengeParams>>;
   verdict: Verdict | null;
@@ -95,6 +103,10 @@ export function FlowEditorProvider({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(
     initialSelectedNodeId,
   );
+  const [nodeClickNonce, setNodeClickNonce] = useState(0);
+  const notifyNodeClick = useCallback(() => {
+    setNodeClickNonce((n) => n + 1);
+  }, []);
   const [params, setParams] = useState<ChallengeParams>(
     initialParams ?? defaultChallengeParams(),
   );
@@ -145,6 +157,8 @@ export function FlowEditorProvider({
       onEdgesChange,
       selectedNodeId,
       setSelectedNodeId,
+      nodeClickNonce,
+      notifyNodeClick,
       params,
       setParams,
       verdict,
@@ -160,6 +174,8 @@ export function FlowEditorProvider({
       setEdges,
       onEdgesChange,
       selectedNodeId,
+      nodeClickNonce,
+      notifyNodeClick,
       params,
       verdict,
       verdictError,

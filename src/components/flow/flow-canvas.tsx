@@ -58,6 +58,7 @@ function FlowInner() {
     setEdges,
     onEdgesChange,
     setSelectedNodeId,
+    notifyNodeClick,
   } = useFlowEditor();
 
   // Publica o zoom atual do canvas no store da imagem de drag, para o ghost
@@ -124,6 +125,35 @@ function FlowInner() {
     [screenToFlowPosition, setNodes],
   );
 
+  // Ctrl/Cmd+A seleciona todos os nós. O RF não traz esse atalho nativo, então
+  // marcamos `selected: true` em todos. Ignora quando o foco está num campo de
+  // texto (deixa o Ctrl+A selecionar o texto, não os nós).
+  const onKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {
+        const target = event.target as HTMLElement | null;
+        const tag = target?.tagName;
+        if (
+          tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          target?.isContentEditable
+        ) {
+          return;
+        }
+        event.preventDefault();
+        setNodes((current) =>
+          current.map((node) => ({ ...node, selected: true })),
+        );
+      }
+    },
+    [setNodes],
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onKeyDown]);
+
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: zona de drop do canvas (drag-and-drop, não é widget de teclado)
     <div className="h-full w-full" onDragOver={onDragOver} onDrop={onDrop}>
@@ -137,7 +167,15 @@ function FlowInner() {
           onSelectionChange={({ nodes: selected }) =>
             setSelectedNodeId(selected.length === 1 ? selected[0].id : null)
           }
+          onNodeClick={(_event, node) => {
+            // Dispara a cada clique (mesmo no nó já selecionado) para a shell
+            // reabrir/rolar o inspector na seção de atributos — `onSelection
+            // Change` não basta porque reclicar o mesmo nó não muda a seleção.
+            setSelectedNodeId(node.id);
+            notifyNodeClick();
+          }}
           isValidConnection={isValidConnection}
+          deleteKeyCode={["Delete", "Backspace"]}
           nodeTypes={nodeTypes}
           nodeOrigin={NODE_ORIGIN}
           colorMode={colorMode}

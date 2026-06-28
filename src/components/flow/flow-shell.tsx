@@ -30,7 +30,7 @@ const FlowCanvas = dynamic(
  * Consome `useFlowEditor` para disparar a simulação.
  */
 function ShellLayout() {
-  const { run, isRunning, selectedNodeId } = useFlowEditor();
+  const { run, isRunning, selectedNodeId, nodeClickNonce } = useFlowEditor();
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [inspectorValue, setInspectorValue] = useState<string[]>(["node"]);
 
@@ -43,15 +43,17 @@ function ShellLayout() {
     run();
   }, [run]);
 
-  // Selecionar um nó no canvas abre o inspector já na seção de atributos
-  // (Node), para o usuário editar o bloco sem precisar abrir/rolar o painel.
-  // Desselecionar (null) não mexe no painel — deixa o usuário onde está.
+  // Clicar num nó no canvas abre o inspector já na seção de atributos (Node).
+  // Observa `nodeClickNonce` (não só `selectedNodeId`) para reagir a CADA
+  // clique — reclicar o nó já selecionado não muda o id, mas deve reabrir a
+  // seção Node mesmo assim (ex.: depois de um Run que mudou para Verdict).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: o nonce é o gatilho; selectedNodeId só filtra cliques válidos
   useEffect(() => {
     if (selectedNodeId) {
       setInspectorOpen(true);
       setInspectorValue(["node"]);
     }
-  }, [selectedNodeId]);
+  }, [nodeClickNonce, selectedNodeId]);
 
   // Aceita o drop-effect "move" em toda a shell durante o arraste de um bloco
   // — sem isso, o cursor vira 🚫 (no-drop) ao cruzar a sidebar/header, já que
@@ -97,6 +99,7 @@ function ShellLayout() {
           open={inspectorOpen}
           value={inspectorValue}
           onValueChange={setInspectorValue}
+          scrollTopSignal={nodeClickNonce}
         />
       </SidebarProvider>
     </div>

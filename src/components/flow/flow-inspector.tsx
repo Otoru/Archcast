@@ -1,7 +1,7 @@
 "use client";
 
 import { PanelRightIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FlowParamsFormConnected } from "@/components/flow/flow-params-form";
 import { FlowVerdictConnected } from "@/components/flow/flow-verdict";
 import {
@@ -33,10 +33,17 @@ export function FlowInspector({
   open,
   value: valueProp,
   onValueChange,
+  scrollTopSignal,
 }: Readonly<{
   open: boolean;
   value?: string[];
   onValueChange?: (value: string[]) => void;
+  /**
+   * Sempre que este número muda, o painel rola de volta ao topo. A shell passa
+   * o `nodeClickNonce` aqui, então clicar num nó traz a seção Node à vista
+   * mesmo que o usuário tivesse rolado para baixo.
+   */
+  scrollTopSignal?: number;
 }>) {
   const [internalValue, setInternalValue] = useState<string[]>(["node"]);
   const controlled = valueProp !== undefined;
@@ -47,6 +54,13 @@ export function FlowInspector({
       setInternalValue(next);
     }
   };
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (scrollTopSignal !== undefined) {
+      scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [scrollTopSignal]);
 
   return (
     <aside
@@ -59,6 +73,7 @@ export function FlowInspector({
       aria-hidden={!open || undefined}
     >
       <div
+        ref={scrollRef}
         className="no-scrollbar h-full overflow-auto"
         style={{ width: PANEL_WIDTH }}
       >
