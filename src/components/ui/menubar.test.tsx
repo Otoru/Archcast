@@ -2,13 +2,12 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-// biome-ignore lint/style/noRestrictedImports: co-located test imports the module under test
 import {
   Menubar,
   menubarItemVariants,
   menubarTriggerVariants,
   menubarVariants,
-} from "./menubar";
+} from "@/components/ui/menubar";
 
 function FileMenu({
   defaultOpen = false,

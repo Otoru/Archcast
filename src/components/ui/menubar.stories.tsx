@@ -91,10 +91,9 @@ export const TriggerDisabled: Story = {
     </Menubar>
   ),
   play: async ({ canvas }) => {
-    await expect(canvas.getByRole("menuitem", { name: "Ajuda" })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
+    await expect(
+      canvas.getByRole("menuitem", { name: "Ajuda" }),
+    ).toHaveAttribute("aria-disabled", "true");
   },
 };
 

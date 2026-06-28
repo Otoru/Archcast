@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { CircleAlert } from "lucide-react";
-import { expect } from "storybook/test";
 
 import { Field } from "@/components/ui/field";
 import { InputGroup } from "@/components/ui/input-group";

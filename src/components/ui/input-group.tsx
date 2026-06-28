@@ -91,6 +91,7 @@ function isFocusTargetAlign(
 function InputGroupAddon({
   className,
   align = "inline-start",
+  children,
   ...props
 }: Readonly<InputGroupAddonProps>) {
   const context = useContext(InputGroupContext);
@@ -108,7 +109,9 @@ function InputGroupAddon({
         data-align={resolvedAlign}
         className={addonClassName}
         {...props}
-      />
+      >
+        {children}
+      </label>
     );
   }
 

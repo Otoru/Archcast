@@ -14,7 +14,8 @@ function FieldRoot({ className, ...props }: Readonly<ComponentProps<"div">>) {
   );
 }
 
-type FieldLabelProps = ComponentProps<"label"> & {
+type FieldLabelProps = Omit<ComponentProps<"label">, "htmlFor"> & {
+  htmlFor: string;
   required?: boolean;
 };
 
@@ -22,10 +23,12 @@ function FieldLabel({
   className,
   children,
   required,
+  htmlFor,
   ...props
 }: Readonly<FieldLabelProps>) {
   return (
     <label
+      htmlFor={htmlFor}
       data-slot="field-label"
       className={cn("wf-text-small font-semibold text-wf-ink", className)}
       {...props}

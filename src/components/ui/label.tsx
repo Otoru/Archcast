@@ -8,7 +8,12 @@ type LabelProps = Omit<ComponentProps<"label">, "htmlFor"> & {
   htmlFor: string;
 };
 
-function Label({ className, htmlFor, ...props }: Readonly<LabelProps>) {
+function Label({
+  className,
+  htmlFor,
+  children,
+  ...props
+}: Readonly<LabelProps>) {
   return (
     <label
       data-slot="label"
@@ -18,7 +23,9 @@ function Label({ className, htmlFor, ...props }: Readonly<LabelProps>) {
         className,
       )}
       {...props}
-    />
+    >
+      {children}
+    </label>
   );
 }
 
