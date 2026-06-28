@@ -12,6 +12,7 @@ import {
 import {
   BlockNode,
   type BlockNode as BlockNodeType,
+  InvalidNodesContext,
 } from "@/components/flow/block-node";
 import { BLOCK_CATALOG } from "@/engine";
 
@@ -101,5 +102,48 @@ export const All: Story = {
       <Controls />
       <MiniMap pannable zoomable />
     </ReactFlow>
+  ),
+};
+
+/**
+ * Dois nós em ciclo (A→B e B→A, canais compatíveis) — ambos acendem a borda
+ * `--wf-destructive` via `InvalidNodesContext`, como no canvas real quando a
+ * validação ao vivo detecta o ciclo.
+ */
+export const Invalid: Story = {
+  render: () => (
+    <InvalidNodesContext.Provider value={new Set(["a", "b"])}>
+      <ReactFlow
+        nodes={[
+          { ...blockNode("app-server", 0, 0), id: "a" },
+          { ...blockNode("app-server", 320, 0), id: "b" },
+        ]}
+        edges={[
+          {
+            id: "e1",
+            source: "a",
+            target: "b",
+            sourceHandle: "out-read",
+            targetHandle: "in-read",
+          },
+          {
+            id: "e2",
+            source: "b",
+            target: "a",
+            sourceHandle: "out-read",
+            targetHandle: "in-read",
+          },
+        ]}
+        nodeTypes={nodeTypes}
+        fitView
+        fitViewOptions={{ padding: 0.4 }}
+        proOptions={{ hideAttribution: true }}
+        colorMode="light"
+      >
+        <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+        <Controls />
+        <MiniMap pannable zoomable />
+      </ReactFlow>
+    </InvalidNodesContext.Provider>
   ),
 };

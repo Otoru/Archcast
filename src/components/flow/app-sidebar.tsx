@@ -5,21 +5,25 @@ import {
   type LucideIcon,
   MessageSquare,
   Network,
+  Search,
   Server,
   Smartphone,
   Wrench,
 } from "lucide-react";
+import { useState } from "react";
 import {
   clearBlockDragImage,
   setBlockDragImage,
 } from "@/components/flow/block-drag-image";
 import { BLOCK_DND_MIME } from "@/components/flow/dnd";
+import { Input } from "@/components/ui/input";
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -37,15 +41,39 @@ const LAYER_META: { layer: Layer; label: string; icon: LucideIcon }[] = [
 
 /**
  * Paleta de blocos do workflow: lista os presets do `BLOCK_CATALOG`
- * agrupados por camada. Cada item é arrastável para o canvas, que cria um
- * nó daquele kind na posição do drop.
+ * agrupados por camada, com um cabeçalho fixo de busca que filtra os blocos
+ * pelo rótulo. Cada item é arrastável para o canvas, que cria um nó daquele
+ * kind na posição do drop.
  */
 export function AppSidebar() {
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+
   return (
-    <Sidebar collapsible="offcanvas">
+    <Sidebar collapsible="offcanvas" className="!border-r-2 !border-wf-border">
+      <SidebarHeader>
+        <div className="relative">
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-wf-ink-soft"
+            aria-hidden="true"
+          />
+          <Input
+            type="text"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search blocks..."
+            aria-label="Search blocks"
+            className="pl-9"
+          />
+        </div>
+      </SidebarHeader>
       <SidebarContent>
         {LAYER_META.map(({ layer, label, icon: Icon }) => {
-          const blocks = BLOCK_CATALOG.filter((block) => block.layer === layer);
+          const blocks = BLOCK_CATALOG.filter(
+            (block) =>
+              block.layer === layer &&
+              (q === "" || block.label.toLowerCase().includes(q)),
+          );
           if (blocks.length === 0) {
             return null;
           }
@@ -71,6 +99,7 @@ export function AppSidebar() {
                           setBlockDragImage(event.dataTransfer, block.kind);
                         }}
                         onDragEnd={clearBlockDragImage}
+                        className="cursor-grab active:cursor-grabbing"
                       >
                         <span>{block.label}</span>
                       </SidebarMenuButton>

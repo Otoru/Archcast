@@ -2,8 +2,9 @@
 
 import "@xyflow/react/dist/style.css";
 
-import type { NodeOrigin, Viewport } from "@xyflow/react";
+import type { Connection, NodeOrigin, Viewport } from "@xyflow/react";
 import {
+  addEdge,
   Background,
   BackgroundVariant,
   Controls,
@@ -16,28 +17,38 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import { useTheme } from "next-themes";
-import { type DragEvent, useCallback, useEffect } from "react";
+import { type DragEvent, useCallback, useEffect, useMemo } from "react";
 import { setCanvasZoom } from "@/components/flow/block-drag-image";
 import {
   BlockNode,
   type BlockNode as BlockNodeType,
+  InvalidNodesContext,
 } from "@/components/flow/block-node";
 import { BLOCK_DND_MIME } from "@/components/flow/dnd";
+import {
+  buildGraph,
+  findInvalidNodeIds,
+  isConnectionValid,
+} from "@/components/flow/validate-graph";
 
 const nodeTypes = { block: BlockNode };
 // Origem do nó no centro: a `position` vira o centro do nó (não o top-left),
 // então o nó solta com o cursor no meio — igual ao ghost do drag.
 const NODE_ORIGIN: NodeOrigin = [0.5, 0.5];
+// Viewport inicial em zoom 1:1. Sem `fitView` no canvas vazio: o RF adia o
+// fit inicial e, ao soltar o primeiro nó, enquadraria esse único nó dando um
+// zoom abrupto. Fixar zoom 1 mantém o tamanho previsível desde o início.
+const DEFAULT_VIEWPORT: Viewport = { x: 0, y: 0, zoom: 1 };
 
 function FlowInner() {
   const { resolvedTheme } = useTheme();
   const colorMode = resolvedTheme === "dark" ? "dark" : "light";
-  const { screenToFlowPosition, getViewport } = useReactFlow<
+  const { screenToFlowPosition, getViewport, getNode } = useReactFlow<
     BlockNodeType,
     Edge
   >();
   const [nodes, setNodes, onNodesChange] = useNodesState<BlockNodeType>([]);
-  const [edges, , onEdgesChange] = useEdgesState<Edge>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   // Publica o zoom atual do canvas no store da imagem de drag, para o ghost
   // aparecer no mesmo tamanho do nó na tela. Inicial no mount + atualizado a
@@ -48,6 +59,32 @@ function FlowInner() {
   const onViewportChange = useCallback((viewport: Viewport) => {
     setCanvasZoom(viewport.zoom ?? 1);
   }, []);
+
+  // Cria a aresta ao soltar uma conexão entre handles. O canal fica
+  // codificado nos `sourceHandle`/`targetHandle` (`out-read` → `in-read`);
+  // `addEdge` dedupe por par de handles.
+  const onConnect = useCallback(
+    (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
+    [setEdges],
+  );
+
+  // Recusa o drop de conexões inválidas já no arraste (canal incompatível,
+  // self-loop, preset sem o canal) — a linha de conexão fica vermelha e a
+  // aresta não chega a ser criada. `getNode` vem do store do RF, evitando
+  // closure stale sobre os nós.
+  const isValidConnection = useCallback(
+    (connection: Connection | Edge) => isConnectionValid(connection, getNode),
+    [getNode],
+  );
+
+  // Validação ao vivo: deriva o conjunto de nós inválidos (em ciclo, ou fonte
+  // de aresta estruturalmente inválida) do grafo do motor — pura, sem mutar
+  // estado, então não há loop de effect. Recomputado a cada connect/move/
+  // delete e entregue aos nós via `InvalidNodesContext`.
+  const invalidNodeIds = useMemo(
+    () => findInvalidNodeIds(buildGraph(nodes, edges)),
+    [nodes, edges],
+  );
 
   const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -80,23 +117,27 @@ function FlowInner() {
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: zona de drop do canvas (drag-and-drop, não é widget de teclado)
     <div className="h-full w-full" onDragOver={onDragOver} onDrop={onDrop}>
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        nodeTypes={nodeTypes}
-        nodeOrigin={NODE_ORIGIN}
-        colorMode={colorMode}
-        onViewportChange={onViewportChange}
-        fitView
-        proOptions={{ hideAttribution: true }}
-        className="h-full w-full bg-background"
-      >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-        <Controls />
-        <MiniMap pannable zoomable />
-      </ReactFlow>
+      <InvalidNodesContext.Provider value={invalidNodeIds}>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          isValidConnection={isValidConnection}
+          nodeTypes={nodeTypes}
+          nodeOrigin={NODE_ORIGIN}
+          colorMode={colorMode}
+          onViewportChange={onViewportChange}
+          defaultViewport={DEFAULT_VIEWPORT}
+          proOptions={{ hideAttribution: true }}
+          className="h-full w-full bg-background"
+        >
+          <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+          <Controls />
+          <MiniMap pannable zoomable />
+        </ReactFlow>
+      </InvalidNodesContext.Provider>
     </div>
   );
 }

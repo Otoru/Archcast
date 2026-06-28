@@ -10,7 +10,7 @@ import {
   Smartphone,
   Wrench,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { createContext, type ReactNode, useContext } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { type BlockPreset, getPreset, type Layer } from "@/engine";
@@ -19,6 +19,17 @@ import { cn } from "@/lib/utils";
 
 export type BlockNodeData = { kind: string; attrs?: Record<string, number> };
 export type BlockNode = Node<BlockNodeData, "block">;
+
+/**
+ * Conjunto de ids de nós atualmente inválidos (em ciclo, ou fonte de aresta
+ * estruturalmente inválida). O `FlowCanvas` publica o conjunto derivado da
+ * validação ao vivo e cada `BlockNode` o consome para acender a borda
+ * `--wf-destructive` — sem mutar `data`, evitando loop de effect. Default
+ * vazio para o fantasma de drag e para stories isolados.
+ */
+export const InvalidNodesContext = createContext<Set<string>>(
+  new Set<string>(),
+);
 
 export type LayerMeta = { label: string; icon: LucideIcon };
 
@@ -52,11 +63,13 @@ export function BlockNodeShell({
   meta,
   renderDot,
   selected = false,
+  invalid = false,
 }: {
   preset: BlockPreset;
   meta: LayerMeta;
   renderDot: DotRenderer;
   selected?: boolean;
+  invalid?: boolean;
 }) {
   const Icon = meta.icon;
   const ins = preset.edges.in;
@@ -68,6 +81,9 @@ export function BlockNodeShell({
       className={cn(
         "relative w-52 rounded-wf border-2 border-wf-border bg-wf-surface text-wf-ink",
         selected && "border-wf-focus ring-wf-focus",
+        // `invalid` vence sobre `selected` quando ambos presentes: um nó em
+        // ciclo continua sinalizando o problema mesmo selecionado.
+        invalid && "border-wf-destructive ring-wf-destructive",
       )}
     >
       <div className="flex items-center gap-2 px-3 pt-2">
@@ -121,7 +137,8 @@ export function BlockNodeShell({
  * codifica o canal (`in-read`, `out-write`, `out-async`...) para casar com
  * arestas por `EdgeChannel` no futuro.
  */
-export function BlockNode({ data, selected }: NodeProps<BlockNode>) {
+export function BlockNode({ id, data, selected }: NodeProps<BlockNode>) {
+  const invalid = useContext(InvalidNodesContext).has(id);
   const preset = getPreset(data.kind);
   if (!preset) {
     return (
@@ -161,6 +178,7 @@ export function BlockNode({ data, selected }: NodeProps<BlockNode>) {
       meta={meta}
       renderDot={renderDot}
       selected={selected}
+      invalid={invalid}
     />
   );
 }

@@ -78,6 +78,7 @@ export function setBlockDragImage(
         meta,
         renderDot: plainDot,
         selected: false,
+        invalid: false,
       }),
     );
   });

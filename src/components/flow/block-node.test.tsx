@@ -7,25 +7,35 @@ import { describe, expect, it } from "vitest";
 import {
   BlockNode,
   type BlockNode as BlockNodeType,
+  InvalidNodesContext,
 } from "@/components/flow/block-node";
 
 const nodeTypes = { block: BlockNode };
 
 /** Renderiza um único BlockNode num ReactFlow mínimo (jsdom polyfillado). */
-function renderNode(kind: string): HTMLElement {
+function renderNode(kind: string, invalidIds?: Set<string>): HTMLElement {
   const node: BlockNodeType = {
     id: "n1",
     type: "block",
     position: { x: 0, y: 0 },
     data: { kind },
   };
+  const flow = (
+    <ReactFlow
+      nodes={[node]}
+      nodeTypes={nodeTypes}
+      proOptions={{ hideAttribution: true }}
+    />
+  );
   const { container } = render(
     <div style={{ height: 600, width: 800 }}>
-      <ReactFlow
-        nodes={[node]}
-        nodeTypes={nodeTypes}
-        proOptions={{ hideAttribution: true }}
-      />
+      {invalidIds ? (
+        <InvalidNodesContext.Provider value={invalidIds}>
+          {flow}
+        </InvalidNodesContext.Provider>
+      ) : (
+        flow
+      )}
     </div>,
   );
   return container;
@@ -75,5 +85,15 @@ describe("BlockNode", () => {
     const container = renderNode("does-not-exist");
     expect(screen.getByText(/unknown: does-not-exist/)).toBeInTheDocument();
     expect(container.querySelectorAll("[data-handleid]")).toHaveLength(0);
+  });
+
+  it("nó no InvalidNodesContext ganha borda wf-destructive", () => {
+    const container = renderNode("app-server", new Set(["n1"]));
+    expect(container.querySelector(".border-wf-destructive")).not.toBeNull();
+  });
+
+  it("nó válido não tem borda wf-destructive", () => {
+    const container = renderNode("app-server");
+    expect(container.querySelector(".border-wf-destructive")).toBeNull();
   });
 });

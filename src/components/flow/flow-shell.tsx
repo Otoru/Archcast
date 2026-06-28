@@ -1,7 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { type DragEvent, useCallback } from "react";
 import { AppSidebar } from "@/components/flow/app-sidebar";
+import { BLOCK_DND_MIME } from "@/components/flow/dnd";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 
@@ -18,8 +20,20 @@ const FlowCanvas = dynamic(
  * sobre o canto do canvas.
  */
 export function FlowShell() {
+  // Aceita o drop-effect "move" em toda a shell durante o arraste de um bloco
+  // — sem isso, o cursor vira 🚫 (no-drop) ao cruzar a sidebar/header, já que
+  // só o canvas dá `preventDefault` no `dragover`. A criação do nó continua só
+  // no `onDrop` do canvas; aqui só mantemos o cursor de "mover" consistente.
+  const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
+    if (event.dataTransfer.types.includes(BLOCK_DND_MIME)) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+    }
+  }, []);
+
   return (
-    <div className="h-dvh w-full overflow-hidden">
+    // biome-ignore lint/a11y/noStaticElementInteractions: cursor do drag-and-drop (não é widget de teclado)
+    <div className="h-dvh w-full overflow-hidden" onDragOver={onDragOver}>
       <SidebarProvider className="h-full w-full" style={{ minHeight: 0 }}>
         <AppSidebar />
         <main className="relative h-full flex-1 overflow-hidden">
