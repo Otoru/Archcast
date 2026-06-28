@@ -177,7 +177,19 @@ function propagateNodeChannels(
         type: "structure",
         nodeId,
         detail: `${channel} channel has flow but no valid destination`,
+        // Aviso, não erro: o canal tem fluxo sem destino válido, mas isso
+        // descreve uma decisão de modelagem pendente (ex.: ainda não ligado a
+        // um absorvedor) em vez de uma falha dura do sistema simulado.
+        severity: "warn",
       });
+      // O fluxo que este canal tentou encaminhar não tem para onde ir, então é
+      // perdido — conta como drop no nó. Ex.: uma CDN com 85% de hit encaminha
+      // 15% adiante; sem fallback, esses 15% caem aqui.
+      const lost = channelFlow * outboundScale;
+      const result = state.nodeResults[nodeId];
+      if (result && lost > 0) {
+        result.dropped = (result.dropped ?? 0) + lost;
+      }
     }
 
     for (const [edgeId, amount] of apportion.deliveries) {

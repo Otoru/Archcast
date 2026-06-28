@@ -98,7 +98,7 @@ export function detectSpof(graph: Graph): Violation[] {
       violations.push({
         type: "spof",
         nodeId: node.id,
-        detail: `Structural node "${node.id}" (${node.kind}) is a single point of failure with no redundancy`,
+        detail: `Single point of failure`,
       });
       continue;
     }
@@ -110,7 +110,7 @@ export function detectSpof(graph: Graph): Violation[] {
       violations.push({
         type: "spof",
         nodeId: node.id,
-        detail: `Node "${node.id}" (${node.kind}) is a single point of failure — its removal disconnects the graph`,
+        detail: `Single point of failure`,
       });
     }
   }

@@ -18,8 +18,6 @@ interface BuildVerdictInput {
   structureViolations: Violation[];
   presenceViolations: Violation[];
   spofViolations: Violation[];
-  monthlyCost?: number;
-  budget?: number;
   saturatedNodes?: Set<string>;
   ratelimitedNodes?: Set<string>;
   weightedP99Latency?: number;
@@ -33,7 +31,7 @@ function collectSaturationViolations(
     return [...saturatedNodes].map((nodeId) => ({
       type: "saturation" as const,
       nodeId,
-      detail: `Node "${nodeId}" saturated during the traffic window`,
+      detail: `Saturated during the traffic window`,
     }));
   }
 
@@ -42,7 +40,7 @@ function collectSaturationViolations(
     .map(([nodeId, result]) => ({
       type: "saturation" as const,
       nodeId,
-      detail: `Node "${nodeId}" is saturated (rho=${result.rho})`,
+      detail: `Saturated (rho=${result.rho.toFixed(2)})`,
     }));
 }
 
@@ -54,7 +52,7 @@ function collectRatelimitViolations(
     return [...ratelimitedNodes].map((nodeId) => ({
       type: "ratelimit" as const,
       nodeId,
-      detail: `Node "${nodeId}" rejected requests above rateCap during the traffic window`,
+      detail: `Rejected requests above rateCap during the traffic window`,
     }));
   }
 
@@ -66,7 +64,7 @@ function collectRatelimitViolations(
     .map(([nodeId, result]) => ({
       type: "ratelimit" as const,
       nodeId,
-      detail: `Node "${nodeId}" rejected ${result.rejectedRps} RPS above rateCap`,
+      detail: `Rejected ${Math.round(result.rejectedRps ?? 0)} RPS above rateCap`,
     }));
 }
 
@@ -93,20 +91,7 @@ function collectLatencyViolation(
   if (Number.isFinite(effectiveLatency) && effectiveLatency > latencySlo) {
     return {
       type: "latency",
-      detail: `End-to-end p99 latency ${effectiveLatency}ms exceeds SLO ${latencySlo}ms`,
-    };
-  }
-  return undefined;
-}
-
-function collectBudgetViolation(
-  monthlyCost: number,
-  budget?: number,
-): Violation | undefined {
-  if (budget !== undefined && monthlyCost > budget) {
-    return {
-      type: "budget",
-      detail: `Monthly cost $${monthlyCost} exceeds budget $${budget}`,
+      detail: `End-to-end p99 latency ${Math.round(effectiveLatency)}ms exceeds SLO ${Math.round(latencySlo)}ms`,
     };
   }
   return undefined;
@@ -144,20 +129,16 @@ export function buildVerdict(input: BuildVerdictInput): Verdict {
     collectLatencyViolation(effectiveLatency, input.params.latencySlo),
   );
 
-  const monthlyCost = input.monthlyCost ?? 0;
-  appendIfDefined(
-    violations,
-    collectBudgetViolation(monthlyCost, input.budget),
-  );
+  // `passed` reflete apenas violações duras — warns (severity "warn") sinalizam
+  // um problema de modelagem mas não derrubam o veredito.
+  const failing = violations.filter((v) => v.severity !== "warn");
 
   return {
-    passed: violations.length === 0,
+    passed: failing.length === 0,
     endToEndLatency: input.endToEndLatency,
     systemAvailability: input.systemAvailability,
     nodes: input.nodeResults,
     edgeFlows: input.edgeFlows,
     violations,
-    monthlyCost,
-    budget: input.budget,
   };
 }

@@ -99,7 +99,7 @@ export function checkAvailability(
   if (systemAvailability < availabilitySlo) {
     return {
       passed: false,
-      detail: `System availability ${systemAvailability.toFixed(6)} is below SLO ${availabilitySlo}`,
+      detail: `System availability ${(systemAvailability * 100).toFixed(3)}% is below SLO ${(availabilitySlo * 100).toFixed(3)}%`,
     };
   }
   return { passed: true };

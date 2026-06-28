@@ -21,8 +21,9 @@ export function ThemeToggle() {
 
   return (
     <Button
-      variant="ghost"
+      variant="outline"
       size="icon"
+      className="rounded-full bg-background shadow-md"
       aria-label="Alternar tema"
       disabled={!mounted}
       onClick={() => setTheme(isDark ? "light" : "dark")}

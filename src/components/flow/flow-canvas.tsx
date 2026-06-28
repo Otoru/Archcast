@@ -12,8 +12,6 @@ import {
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
-  useEdgesState,
-  useNodesState,
   useReactFlow,
 } from "@xyflow/react";
 import { useTheme } from "next-themes";
@@ -25,6 +23,7 @@ import {
   InvalidNodesContext,
 } from "@/components/flow/block-node";
 import { BLOCK_DND_MIME } from "@/components/flow/dnd";
+import { useFlowEditor } from "@/components/flow/flow-editor-state";
 import {
   buildGraph,
   findInvalidNodeIds,
@@ -47,8 +46,19 @@ function FlowInner() {
     BlockNodeType,
     Edge
   >();
-  const [nodes, setNodes, onNodesChange] = useNodesState<BlockNodeType>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  // Estado do editor (nodes/edges/seleção) vive no `FlowEditorProvider` da
+  // shell — assim o inspector e o botão Run enxergam o mesmo grafo. Os
+  // handlers de change são repassados direto ao `<ReactFlow>`; `getNode`
+  // segue do store do RF (`useReactFlow`), evitando closure stale.
+  const {
+    nodes,
+    setNodes,
+    onNodesChange,
+    edges,
+    setEdges,
+    onEdgesChange,
+    setSelectedNodeId,
+  } = useFlowEditor();
 
   // Publica o zoom atual do canvas no store da imagem de drag, para o ghost
   // aparecer no mesmo tamanho do nó na tela. Inicial no mount + atualizado a
@@ -107,7 +117,7 @@ function FlowInner() {
         id: `${kind}-${crypto.randomUUID()}`,
         type: "block",
         position,
-        data: { kind },
+        data: { kind, attrs: {} },
       };
       setNodes((current) => [...current, node]);
     },
@@ -124,6 +134,9 @@ function FlowInner() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onSelectionChange={({ nodes: selected }) =>
+            setSelectedNodeId(selected.length === 1 ? selected[0].id : null)
+          }
           isValidConnection={isValidConnection}
           nodeTypes={nodeTypes}
           nodeOrigin={NODE_ORIGIN}

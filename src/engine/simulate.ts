@@ -1,4 +1,3 @@
-import { computeCost } from "@/engine/cost";
 import { computeEndToEndLatency } from "@/engine/latency";
 import { resolveProfile } from "@/engine/profile";
 import { propagate } from "@/engine/propagate";
@@ -25,7 +24,6 @@ export interface TickResult {
 export interface SimulationResult {
   ticks: TickResult[];
   peakProvisioned: Record<string, number>;
-  monthlyCost: number;
   weightedP99Latency: number;
   saturatedNodes: Set<string>;
   ratelimitedNodes: Set<string>;
@@ -129,24 +127,9 @@ export function simulate(
     prevBacklog = backlog;
   }
 
-  // Consolidated nodeResults for cost: elastic nodes use peak provisioned.
-  const lastNodes = ticks[ticks.length - 1]?.nodeResults ?? {};
-  const consolidated: Record<string, NodeResult> = {};
-  for (const node of graph.nodes) {
-    const last = lastNodes[node.id];
-    if (last) {
-      consolidated[node.id] = {
-        ...last,
-        provisioned: peakProvisioned[node.id] ?? last.provisioned,
-      };
-    }
-  }
-  const cost = computeCost(graph, consolidated, registry);
-
   return {
     ticks,
     peakProvisioned,
-    monthlyCost: cost.monthlyCost,
     weightedP99Latency: weightedP99Latency(ticks, tickSec),
     saturatedNodes,
     ratelimitedNodes,

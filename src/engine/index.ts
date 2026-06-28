@@ -1,5 +1,4 @@
 import { computeSystemAvailability } from "@/engine/availability";
-import { computeCost } from "@/engine/cost";
 import { validateDag } from "@/engine/graph";
 import { computeEndToEndLatency } from "@/engine/latency";
 import { checkPresence } from "@/engine/presence";
@@ -88,8 +87,6 @@ export function runSimulation(
       ]),
       presenceViolations,
       spofViolations,
-      monthlyCost: sim.monthlyCost,
-      budget: params.budget,
       saturatedNodes: sim.saturatedNodes,
       ratelimitedNodes: sim.ratelimitedNodes,
       weightedP99Latency: sim.weightedP99Latency,
@@ -105,7 +102,6 @@ export function runSimulation(
   const systemAvailability = computeSystemAvailability(graph);
   const presenceViolations = checkPresence(graph, params);
   const spofViolations = detectSpof(graph);
-  const cost = computeCost(graph, propagation.nodeResults, registry);
 
   return buildVerdict({
     graph,
@@ -120,8 +116,6 @@ export function runSimulation(
     ],
     presenceViolations,
     spofViolations,
-    monthlyCost: cost.monthlyCost,
-    budget: params.budget,
   });
 }
 
@@ -134,8 +128,6 @@ export {
   registerPreset,
   resolveNode,
 } from "@/engine/catalog";
-export type { NodeCostBreakdown } from "@/engine/cost";
-export { computeCost } from "@/engine/cost";
 export { CycleError, topologicalSort, validateDag } from "@/engine/graph";
 export { computeEndToEndLatency } from "@/engine/latency";
 export type {

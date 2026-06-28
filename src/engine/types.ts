@@ -32,8 +32,6 @@ export interface BlockDefaults {
   availability?: number;
   instances?: number;
   rateCap?: number;
-  costPerInstance?: number;
-  costPerCapacityUnit?: number;
 }
 
 export interface BlockPreset {
@@ -59,7 +57,6 @@ export interface ChallengeParams {
   latencySlo: number;
   availabilitySlo: number;
   requiredKinds?: string[];
-  budget?: number;
 }
 
 export interface NodeInstance {
@@ -134,10 +131,16 @@ export interface Violation {
     | "presence"
     | "availability"
     | "spof"
-    | "ratelimit"
-    | "budget";
+    | "ratelimit";
   nodeId?: string;
   detail: string;
+  /**
+   * `warn` = advertência não-fatal (não derruba o `passed`); `error` (default
+   * quando omitido) = falha dura. Usado para condições estruturais que sinalizam
+   * um problema de modelagem sem invalidar o veredito (ex.: canal com fluxo sem
+   * destino válido).
+   */
+  severity?: "warn" | "error";
 }
 
 export interface Verdict {
@@ -147,8 +150,6 @@ export interface Verdict {
   nodes: Record<string, NodeResult>;
   edgeFlows: Record<string, Flow>;
   violations: Violation[];
-  monthlyCost: number;
-  budget?: number;
 }
 
 export const DEFAULT_AVAILABILITY = 0.999;

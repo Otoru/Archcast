@@ -56,7 +56,7 @@ describe("buildVerdict", () => {
     expect(verdict.violations).toContainEqual({
       type: "saturation",
       nodeId: "db",
-      detail: expect.stringContaining("db"),
+      detail: expect.stringContaining("Saturated"),
     });
   });
 

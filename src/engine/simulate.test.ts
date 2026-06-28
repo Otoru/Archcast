@@ -84,7 +84,7 @@ describe("simulate", () => {
     expect(sim.weightedP99Latency).toBe(Number.POSITIVE_INFINITY);
   });
 
-  it("B: serverless never saturates (passes SLO) but peak provisioning is expensive", () => {
+  it("B: serverless never saturates (passes SLO) with peak provisioning", () => {
     const graph = makeGraph(
       [sourceNode("src"), presetNode("fn", "serverless", {})],
       [{ id: "e1", from: "src", to: "fn", kind: "read" }],
@@ -96,11 +96,9 @@ describe("simulate", () => {
     expect(sim.weightedP99Latency).toBeLessThan(1000);
     // Provisioned for the burst (peak), not the average.
     expect(sim.peakProvisioned.fn).toBeGreaterThan(1);
-    // cost = provisioned * (0 + capacity*0.20)
-    expect(sim.monthlyCost).toBe(sim.peakProvisioned.fn * (0 + 1000 * 0.2));
   });
 
-  it("C: fixed queue + workers handle the burst and fit a modest budget", () => {
+  it("C: fixed queue + workers handle the burst without saturating", () => {
     const graph = makeGraph(
       [
         sourceNode("src"),
@@ -128,11 +126,9 @@ describe("simulate", () => {
 
     expect(sim.saturatedNodes.size).toBe(0);
     expect(sim.weightedP99Latency).toBeLessThan(1000);
-    // Fixed footprint (instances), not peak-provisioned → cheaper than serverless.
-    expect(sim.monthlyCost).toBeLessThan(2000);
   });
 
-  it("D: steady path is unchanged and still reports a monthly cost", () => {
+  it("D: steady path is unchanged and passes", () => {
     const graph = makeGraph(
       [
         sourceNode("src"),
@@ -148,7 +144,6 @@ describe("simulate", () => {
 
     expect(verdict.passed).toBe(true);
     expect(verdict.violations).toHaveLength(0);
-    expect(verdict.monthlyCost).toBeGreaterThan(0);
   });
 
   it("E: deterministic — identical inputs produce identical results", () => {
@@ -164,7 +159,6 @@ describe("simulate", () => {
     const b = simulate(graph, spiky({ rps: 500 }), registry);
 
     expect(a.ticks).toEqual(b.ticks);
-    expect(a.monthlyCost).toBe(b.monthlyCost);
     expect(a.weightedP99Latency).toBe(b.weightedP99Latency);
     expect([...a.saturatedNodes]).toEqual([...b.saturatedNodes]);
     expect([...a.ratelimitedNodes]).toEqual([...b.ratelimitedNodes]);

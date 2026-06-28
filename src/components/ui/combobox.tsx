@@ -175,9 +175,17 @@ function ComboboxTrigger({
     >
       <ComboboxPrimitive.Trigger
         data-slot="combobox-trigger"
+        nativeButton={false}
         aria-invalid={context.invalid || undefined}
         aria-label={ariaLabel}
         aria-labelledby={ariaLabelledBy ?? context.valueLabelId}
+        // Render as a `<div>` (not a `<button>`) so interactive children like
+        // `Combobox.Clear` and `Combobox.ChipRemove` (which render `<button>`s)
+        // are valid HTML — a `<button>` cannot contain nested `<button>`s.
+        // `nativeButton={false}` tells base-ui we intentionally drop native
+        // button semantics; it still merges `role="combobox"`, aria and the
+        // open-on-click/keyboard behavior onto the div.
+        render={<div />}
         className={(state) =>
           cn(
             comboboxTriggerVariants({

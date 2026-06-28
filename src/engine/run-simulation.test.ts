@@ -307,7 +307,7 @@ describe("runSimulation", () => {
     expect(verdict.endToEndLatency).toBeCloseTo(expected);
   });
 
-  it("14: channel with flow but no valid destination yields structure violation", () => {
+  it("14: channel with flow but no valid destination is flagged as a warn, not an error", () => {
     const graph = makeGraph(
       [
         sourceNode("src"),
@@ -327,12 +327,17 @@ describe("runSimulation", () => {
       defaultParams({ rps: 100, readWriteRatio: 0.8 }),
     );
 
-    expect(verdict.passed).toBe(false);
-    expect(
-      verdict.violations.some(
-        (v) => v.type === "structure" && v.detail.includes("write"),
-      ),
-    ).toBe(true);
+    // The "no valid destination" violation is a warning (severity "warn"), not
+    // a hard error. (The graph also has an invalid write edge into the cache,
+    // which stays an error — that's what makes the verdict fail, separately.)
+    const noDestination = verdict.violations.find(
+      (v) =>
+        v.type === "structure" &&
+        v.detail.includes("no valid destination") &&
+        v.detail.includes("write"),
+    );
+    expect(noDestination).toBeDefined();
+    expect(noDestination?.severity).toBe("warn");
   });
 
   it("15: instances=3 matches three-way replica split", () => {

@@ -137,7 +137,13 @@ describe("Combobox", () => {
         </Combobox.Content>
       </Combobox>,
     );
-    expect(screen.getByRole("combobox")).toBeDisabled();
+    // Trigger renderiza como <div role="combobox"> (não <button>) para poder
+    // aninhar os botões de Clear/ChipRemove, então o estado disabled vem por
+    // `aria-disabled`, não pelo atributo nativo `disabled`.
+    expect(screen.getByRole("combobox")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
   it("renders multi chips for selected values", () => {
