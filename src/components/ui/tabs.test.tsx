@@ -41,7 +41,7 @@ describe("tabsTriggerVariants", () => {
       "[&:not([data-active])]:hover:bg-wf-disabled-surface",
     );
     expect(classes).toContain("data-active:bg-wf-ink");
-    expect(classes).toContain("data-active:text-white");
+    expect(classes).toContain("data-active:text-wf-ink-foreground");
     expect(classes).toContain("data-active:hover:bg-wf-ink");
   });
 

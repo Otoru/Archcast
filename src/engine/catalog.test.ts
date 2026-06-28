@@ -51,7 +51,9 @@ describe("catalog", () => {
   it("isOrigin and isStructural identify primitives", () => {
     expect(isOrigin({ id: "c", kind: "web-client", attrs: {} })).toBe(true);
     expect(isOrigin({ id: "s", kind: "app-server", attrs: {} })).toBe(false);
-    expect(isStructural({ id: "d", kind: "dns", attrs: {} })).toBe(true);
+    expect(isStructural({ id: "d", kind: "feature-flags", attrs: {} })).toBe(
+      true,
+    );
     expect(isStructural({ id: "s", kind: "app-server", attrs: {} })).toBe(
       false,
     );

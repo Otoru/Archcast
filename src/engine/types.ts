@@ -32,6 +32,8 @@ export interface BlockDefaults {
   availability?: number;
   instances?: number;
   rateCap?: number;
+  costPerInstance?: number;
+  costPerCapacityUnit?: number;
 }
 
 export interface BlockPreset {
@@ -57,6 +59,7 @@ export interface ChallengeParams {
   latencySlo: number;
   availabilitySlo: number;
   requiredKinds?: string[];
+  budget?: number;
 }
 
 export interface NodeInstance {
@@ -90,6 +93,8 @@ export interface NodeResult {
   provisioned?: number;
   dropped?: number;
   rejectedRps?: number;
+  backlog?: number;
+  outboundFlow?: number;
 }
 
 export interface ResolvedNode {
@@ -101,13 +106,22 @@ export interface ResolvedNode {
   flags: BlockFlags;
 }
 
+export interface TickState {
+  backlog: Record<string, number>;
+}
+
+export interface ComputeContext {
+  params: ChallengeParams;
+  tickState?: TickState;
+}
+
 export interface PrimitiveHandler {
   primitive: PrimitiveKind;
   roleFor(channel: EdgeChannel, resolved: ResolvedNode): ChannelRole | null;
   compute(
     deliveredLambda: number,
     resolved: ResolvedNode,
-    ctx: { params: ChallengeParams },
+    ctx: ComputeContext,
   ): NodeResult;
   outboundMultiplier?(resolved: ResolvedNode): number;
 }
@@ -120,7 +134,8 @@ export interface Violation {
     | "presence"
     | "availability"
     | "spof"
-    | "ratelimit";
+    | "ratelimit"
+    | "budget";
   nodeId?: string;
   detail: string;
 }
@@ -132,6 +147,8 @@ export interface Verdict {
   nodes: Record<string, NodeResult>;
   edgeFlows: Record<string, Flow>;
   violations: Violation[];
+  monthlyCost: number;
+  budget?: number;
 }
 
 export const DEFAULT_AVAILABILITY = 0.999;

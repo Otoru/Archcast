@@ -16,7 +16,7 @@ describe("badgeVariants", () => {
   it("default variant includes wf-ink background and 2px border", () => {
     const classes = badgeVariants({ variant: "default" });
     expect(classes).toContain("bg-wf-ink");
-    expect(classes).toContain("text-white");
+    expect(classes).toContain("text-wf-ink-foreground");
     expect(classes).toContain("border-wf-ink");
     expect(classes).toContain("border-2");
   });

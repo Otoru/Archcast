@@ -498,7 +498,7 @@ function ComboboxItem({
               className={cn(
                 "inline-flex size-4 shrink-0 items-center justify-center rounded-wf-checkbox border-2 bg-wf-surface",
                 state.selected
-                  ? "border-wf-ink bg-wf-ink text-white"
+                  ? "border-wf-ink bg-wf-ink text-wf-ink-foreground"
                   : "border-wf-border",
               )}
             >

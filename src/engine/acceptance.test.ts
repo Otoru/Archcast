@@ -123,30 +123,30 @@ describe("acceptance criteria", () => {
     expect(low.endToEndLatency).toBeCloseTo(5 * Math.log(100), 0);
   });
 
-  it("D4: structural dns excluded from lambda, presence and spof", () => {
+  it("D4: structural feature-flags excluded from lambda, presence and spof", () => {
     const graph = makeGraph(
       [
         sourceNode("src"),
-        presetNode("dns", "dns", {}),
+        presetNode("ff", "feature-flags", {}),
         serverNode("app", { capacity: 1000, latBase: 5 }),
       ],
       [{ id: "e1", from: "src", to: "app", kind: "read" }],
     );
 
-    const missingDns = runSimulation(
+    const missingFf = runSimulation(
       makeGraph(
         [sourceNode("src"), serverNode("app", { capacity: 1000, latBase: 5 })],
         [{ id: "e1", from: "src", to: "app", kind: "read" }],
       ),
-      { ...defaultParams(), requiredKinds: ["dns"] },
+      { ...defaultParams(), requiredKinds: ["feature-flags"] },
     );
 
-    const withDns = runSimulation(graph, defaultParams());
+    const withFf = runSimulation(graph, defaultParams());
 
-    expect(withDns.nodes.dns).toBeUndefined();
-    expect(missingDns.violations.some((v) => v.type === "presence")).toBe(true);
+    expect(withFf.nodes.ff).toBeUndefined();
+    expect(missingFf.violations.some((v) => v.type === "presence")).toBe(true);
     expect(
-      withDns.violations.some((v) => v.type === "spof" && v.nodeId === "dns"),
+      withFf.violations.some((v) => v.type === "spof" && v.nodeId === "ff"),
     ).toBe(true);
   });
 

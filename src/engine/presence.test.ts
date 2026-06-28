@@ -19,11 +19,11 @@ describe("checkPresence", () => {
       readWriteRatio: 1,
       latencySlo: 1000,
       availabilitySlo: 0.99,
-      requiredKinds: ["dns", "app-server"],
+      requiredKinds: ["feature-flags", "app-server"],
     });
 
     expect(violations).toHaveLength(1);
     expect(violations[0]?.type).toBe("presence");
-    expect(violations[0]?.detail).toContain("dns");
+    expect(violations[0]?.detail).toContain("feature-flags");
   });
 });

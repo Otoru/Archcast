@@ -22,7 +22,7 @@ const tabsListVariants = cva(
 );
 
 const tabsTriggerVariants = cva(
-  "inline-flex h-10 cursor-pointer items-center justify-center gap-2 border-2 border-wf-border bg-wf-surface px-4 text-sm font-semibold text-wf-ink transition-colors outline-none select-none focus-wf-ring [&:not([data-active])]:hover:bg-wf-disabled-surface data-active:border-wf-ink data-active:bg-wf-ink data-active:text-white data-active:hover:border-wf-ink data-active:hover:bg-wf-ink data-active:hover:text-white data-disabled:pointer-events-none data-disabled:cursor-not-allowed [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0 data-active:[&_svg]:text-white data-active:hover:[&_svg]:text-white [&_svg]:text-wf-ink",
+  "inline-flex h-10 cursor-pointer items-center justify-center gap-2 border-2 border-wf-border bg-wf-surface px-4 text-sm font-semibold text-wf-ink transition-colors outline-none select-none focus-wf-ring [&:not([data-active])]:hover:bg-wf-disabled-surface data-active:border-wf-ink data-active:bg-wf-ink data-active:text-wf-ink-foreground data-active:hover:border-wf-ink data-active:hover:bg-wf-ink data-active:hover:text-wf-ink-foreground data-disabled:pointer-events-none data-disabled:cursor-not-allowed [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0 data-active:[&_svg]:text-wf-ink-foreground data-active:hover:[&_svg]:text-wf-ink-foreground [&_svg]:text-wf-ink",
   {
     variants: {
       shape: {

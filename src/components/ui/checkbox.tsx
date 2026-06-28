@@ -14,7 +14,7 @@ const checkboxVariants = cva(
     variants: {
       invalid: {
         false:
-          "border-wf-border focus-visible:outline-wf-ink data-checked:border-wf-ink data-checked:bg-wf-ink data-checked:text-white",
+          "border-wf-border focus-visible:outline-wf-ink data-checked:border-wf-ink data-checked:bg-wf-ink data-checked:text-wf-ink-foreground",
         true: "border-wf-destructive focus-visible:outline-wf-destructive data-checked:border-wf-destructive data-checked:bg-wf-destructive data-checked:text-white",
       },
     },

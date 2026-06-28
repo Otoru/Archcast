@@ -15,7 +15,9 @@ export function ThemeToggle() {
     setMounted(true);
   }, []);
 
-  const isDark = resolvedTheme === "dark";
+  // Gate em `mounted` para que servidor e primeira renderização do cliente
+  // produzam o mesmo className (evita hydration mismatch do next-themes).
+  const isDark = mounted && resolvedTheme === "dark";
 
   return (
     <Button

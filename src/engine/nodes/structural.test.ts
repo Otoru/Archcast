@@ -11,11 +11,11 @@ import {
 } from "@/engine/test-helpers";
 
 describe("structural", () => {
-  it("dns does not receive or emit lambda", () => {
+  it("feature-flags does not receive or emit lambda", () => {
     const graph = makeGraph(
       [
         sourceNode("src"),
-        presetNode("dns", "dns", {}),
+        presetNode("ff", "feature-flags", {}),
         presetNode("app", "app-server", { capacity: 1000, latBase: 5 }),
       ],
       [{ id: "e1", from: "src", to: "app", kind: "read" }],
@@ -23,11 +23,11 @@ describe("structural", () => {
 
     const result = propagate(graph, defaultParams(), createDefaultRegistry());
 
-    expect(result.nodeResults.dns).toBeUndefined();
-    expect(Object.keys(result.edgeFlows)).not.toContain("dns");
+    expect(result.nodeResults.ff).toBeUndefined();
+    expect(Object.keys(result.edgeFlows)).not.toContain("ff");
   });
 
-  it("missing required dns triggers presence violation", () => {
+  it("missing required feature-flags triggers presence violation", () => {
     const graph = makeGraph(
       [
         sourceNode("src"),
@@ -38,17 +38,17 @@ describe("structural", () => {
 
     const verdict = runSimulation(graph, {
       ...defaultParams(),
-      requiredKinds: ["dns"],
+      requiredKinds: ["feature-flags"],
     });
 
     expect(verdict.violations.some((v) => v.type === "presence")).toBe(true);
   });
 
-  it("single dns triggers spof as structural infrastructure", () => {
+  it("single feature-flags triggers spof as structural infrastructure", () => {
     const graph = makeGraph(
       [
         sourceNode("src"),
-        presetNode("dns", "dns", {}),
+        presetNode("ff", "feature-flags", {}),
         presetNode("app", "app-server", { capacity: 1000, latBase: 5 }),
       ],
       [{ id: "e1", from: "src", to: "app", kind: "read" }],
@@ -57,7 +57,7 @@ describe("structural", () => {
     const verdict = runSimulation(graph, defaultParams());
 
     expect(
-      verdict.violations.some((v) => v.type === "spof" && v.nodeId === "dns"),
+      verdict.violations.some((v) => v.type === "spof" && v.nodeId === "ff"),
     ).toBe(true);
   });
 });

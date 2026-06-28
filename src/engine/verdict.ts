@@ -18,6 +18,107 @@ interface BuildVerdictInput {
   structureViolations: Violation[];
   presenceViolations: Violation[];
   spofViolations: Violation[];
+  monthlyCost?: number;
+  budget?: number;
+  saturatedNodes?: Set<string>;
+  ratelimitedNodes?: Set<string>;
+  weightedP99Latency?: number;
+}
+
+function collectSaturationViolations(
+  nodeResults: Record<string, NodeResult>,
+  saturatedNodes?: Set<string>,
+): Violation[] {
+  if (saturatedNodes) {
+    return [...saturatedNodes].map((nodeId) => ({
+      type: "saturation" as const,
+      nodeId,
+      detail: `Node "${nodeId}" saturated during the traffic window`,
+    }));
+  }
+
+  return Object.entries(nodeResults)
+    .filter(([, result]) => result.saturated)
+    .map(([nodeId, result]) => ({
+      type: "saturation" as const,
+      nodeId,
+      detail: `Node "${nodeId}" is saturated (rho=${result.rho})`,
+    }));
+}
+
+function collectRatelimitViolations(
+  nodeResults: Record<string, NodeResult>,
+  ratelimitedNodes?: Set<string>,
+): Violation[] {
+  if (ratelimitedNodes) {
+    return [...ratelimitedNodes].map((nodeId) => ({
+      type: "ratelimit" as const,
+      nodeId,
+      detail: `Node "${nodeId}" rejected requests above rateCap during the traffic window`,
+    }));
+  }
+
+  return Object.entries(nodeResults)
+    .filter(
+      ([, result]) =>
+        result.rejectedRps !== undefined && result.rejectedRps > 0,
+    )
+    .map(([nodeId, result]) => ({
+      type: "ratelimit" as const,
+      nodeId,
+      detail: `Node "${nodeId}" rejected ${result.rejectedRps} RPS above rateCap`,
+    }));
+}
+
+function collectAvailabilityViolation(
+  graph: Graph,
+  systemAvailability: number,
+  availabilitySlo: number,
+): Violation | undefined {
+  const availabilityCheck = checkAvailability(
+    graph,
+    systemAvailability,
+    availabilitySlo,
+  );
+  if (!availabilityCheck.passed && availabilityCheck.detail) {
+    return { type: "availability", detail: availabilityCheck.detail };
+  }
+  return undefined;
+}
+
+function collectLatencyViolation(
+  effectiveLatency: number,
+  latencySlo: number,
+): Violation | undefined {
+  if (Number.isFinite(effectiveLatency) && effectiveLatency > latencySlo) {
+    return {
+      type: "latency",
+      detail: `End-to-end p99 latency ${effectiveLatency}ms exceeds SLO ${latencySlo}ms`,
+    };
+  }
+  return undefined;
+}
+
+function collectBudgetViolation(
+  monthlyCost: number,
+  budget?: number,
+): Violation | undefined {
+  if (budget !== undefined && monthlyCost > budget) {
+    return {
+      type: "budget",
+      detail: `Monthly cost $${monthlyCost} exceeds budget $${budget}`,
+    };
+  }
+  return undefined;
+}
+
+function appendIfDefined(
+  violations: Violation[],
+  violation: Violation | undefined,
+): void {
+  if (violation) {
+    violations.push(violation);
+  }
 }
 
 export function buildVerdict(input: BuildVerdictInput): Verdict {
@@ -25,47 +126,29 @@ export function buildVerdict(input: BuildVerdictInput): Verdict {
     ...input.structureViolations,
     ...input.presenceViolations,
     ...input.spofViolations,
+    ...collectSaturationViolations(input.nodeResults, input.saturatedNodes),
+    ...collectRatelimitViolations(input.nodeResults, input.ratelimitedNodes),
   ];
 
-  for (const [nodeId, result] of Object.entries(input.nodeResults)) {
-    if (result.saturated) {
-      violations.push({
-        type: "saturation",
-        nodeId,
-        detail: `Node "${nodeId}" is saturated (rho=${result.rho})`,
-      });
-    }
-
-    if (result.rejectedRps !== undefined && result.rejectedRps > 0) {
-      violations.push({
-        type: "ratelimit",
-        nodeId,
-        detail: `Node "${nodeId}" rejected ${result.rejectedRps} RPS above rateCap`,
-      });
-    }
-  }
-
-  const availabilityCheck = checkAvailability(
-    input.graph,
-    input.systemAvailability,
-    input.params.availabilitySlo,
+  const effectiveLatency = input.weightedP99Latency ?? input.endToEndLatency;
+  appendIfDefined(
+    violations,
+    collectAvailabilityViolation(
+      input.graph,
+      input.systemAvailability,
+      input.params.availabilitySlo,
+    ),
   );
-  if (!availabilityCheck.passed && availabilityCheck.detail) {
-    violations.push({
-      type: "availability",
-      detail: availabilityCheck.detail,
-    });
-  }
+  appendIfDefined(
+    violations,
+    collectLatencyViolation(effectiveLatency, input.params.latencySlo),
+  );
 
-  if (
-    Number.isFinite(input.endToEndLatency) &&
-    input.endToEndLatency > input.params.latencySlo
-  ) {
-    violations.push({
-      type: "latency",
-      detail: `End-to-end p99 latency ${input.endToEndLatency}ms exceeds SLO ${input.params.latencySlo}ms`,
-    });
-  }
+  const monthlyCost = input.monthlyCost ?? 0;
+  appendIfDefined(
+    violations,
+    collectBudgetViolation(monthlyCost, input.budget),
+  );
 
   return {
     passed: violations.length === 0,
@@ -74,5 +157,7 @@ export function buildVerdict(input: BuildVerdictInput): Verdict {
     nodes: input.nodeResults,
     edgeFlows: input.edgeFlows,
     violations,
+    monthlyCost,
+    budget: input.budget,
   };
 }

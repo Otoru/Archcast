@@ -10,6 +10,7 @@ import type {
   Graph,
   NodeInstance,
   NodeResult,
+  TickState,
   Violation,
 } from "@/engine/types";
 
@@ -32,6 +33,7 @@ interface NodePropagationContext {
   params: ChallengeParams;
   registry: NodeTypeRegistry;
   state: PropagationState;
+  tickState?: TickState;
 }
 
 interface ChannelPropagation {
@@ -137,6 +139,13 @@ function propagateNodeChannels(
   const { graph, registry, state } = ctx;
   const { nodeId, routingFlow, isSource, outboundMultiplier } = channel;
   const hasAsyncOutgoing = hasOutgoingEdge(graph, nodeId, "async");
+  const result = state.nodeResults[nodeId];
+  const totalRouting = routingFlow.read + routingFlow.write + routingFlow.async;
+  const outboundFlow = result?.outboundFlow;
+  const outboundScale =
+    outboundFlow !== undefined && totalRouting > 0
+      ? outboundFlow / totalRouting
+      : outboundMultiplier;
 
   for (const channel of CHANNELS) {
     const channelFlow = resolveChannelFlow(
@@ -158,7 +167,7 @@ function propagateNodeChannels(
     const apportion = apportionChannel(
       nodeId,
       channel,
-      channelFlow * outboundMultiplier,
+      channelFlow * outboundScale,
       graph,
       registry,
     );
@@ -193,6 +202,7 @@ function processNode(
     routingFlow.read + routingFlow.write + routingFlow.async;
   state.nodeResults[nodeId] = handler.compute(deliveredLambda, resolved, {
     params,
+    tickState: ctx.tickState,
   });
 
   propagateNodeChannels(ctx, {
@@ -207,6 +217,7 @@ export function propagate(
   graph: Graph,
   params: ChallengeParams,
   registry: NodeTypeRegistry,
+  tickState?: TickState,
 ): PropagationResult {
   const order = topologicalSort(graph);
   const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
@@ -215,7 +226,13 @@ export function propagate(
     edgeFlows: {},
     structureViolations: [],
   };
-  const ctx: NodePropagationContext = { graph, params, registry, state };
+  const ctx: NodePropagationContext = {
+    graph,
+    params,
+    registry,
+    state,
+    tickState,
+  };
 
   for (const nodeId of order) {
     const node = nodeById.get(nodeId);
