@@ -241,7 +241,7 @@
                           "id": "IotNS",
                           "name": "Label",
                           "fill": "#161616",
-                          "content": "Contorno",
+                          "content": "Outline",
                           "fontFamily": "$wf-font-body",
                           "fontSize": 14,
                           "fontWeight": "600"
@@ -3192,7 +3192,7 @@
               "id": "aFDmD",
               "name": "Patterns Title",
               "fill": "$wf-ink",
-              "content": "Padrões/Grupo de Botões",
+              "content": "Padrões/Tabs",
               "fontFamily": "$wf-font-heading",
               "fontSize": 18,
               "fontWeight": "700"
@@ -4259,44 +4259,6 @@
                                 {
                                   "type": "icon",
                                   "id": "N924H",
-                                  "name": "Sep",
-                                  "width": 14,
-                                  "height": 14,
-                                  "icon": "chevron-right",
-                                  "library": "lucide",
-                                  "fill": "$wf-border-soft"
-                                },
-                                {
-                                  "type": "frame",
-                                  "id": "nSBoz",
-                                  "name": "Breadcrumb Link 2",
-                                  "height": 32,
-                                  "fill": "#FFFFFF00",
-                                  "cornerRadius": 8,
-                                  "stroke": "#FFFFFF00",
-                                  "gap": 6,
-                                  "padding": [
-                                    0,
-                                    12
-                                  ],
-                                  "justifyContent": "center",
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "F3j4Lu",
-                                      "name": "Label",
-                                      "fill": "$wf-ink-soft",
-                                      "content": "Referência da API",
-                                      "fontFamily": "$wf-font-body",
-                                      "fontSize": 12,
-                                      "fontWeight": "600"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "type": "icon",
-                                  "id": "Cb4qK",
                                   "name": "Sep",
                                   "width": 14,
                                   "height": 14,

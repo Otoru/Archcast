@@ -18,6 +18,17 @@
     "enabled": true,
     "rules": {
       "recommended": true,
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "../*": "Use o alias @/ em vez de imports relativos.",
+              "./*": "Use o alias @/ em vez de imports relativos."
+            }
+          }
+        }
+      },
       "suspicious": {
         "noUnknownAtRules": "off"
       }
