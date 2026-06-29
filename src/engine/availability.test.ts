@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { runSimulation } from "@/engine";
-import { checkAvailability, computeSystemAvailability } from "@/engine/availability";
+import {
+  checkAvailability,
+  computeSystemAvailability,
+} from "@/engine/availability";
 import {
   defaultParams,
   makeGraph,

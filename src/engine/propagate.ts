@@ -14,6 +14,29 @@ import type {
   Violation,
 } from "@/engine/types";
 
+/**
+ * Conjunto de nós que têm um distribuidor (load-balancer/api-gateway) imediato
+ * a montante. Para esses nós, `instances` escala a capacidade; nos demais,
+ * `instances` só afeta disponibilidade.
+ */
+function computeDistributedUpstream(
+  graph: Graph,
+  registry: NodeTypeRegistry,
+): Set<string> {
+  const distributed = new Set<string>();
+  for (const edge of graph.edges) {
+    const from = graph.nodes.find((node) => node.id === edge.from);
+    if (!from) {
+      continue;
+    }
+    const resolved = registry.resolve(from);
+    if (resolved.flags.distribute) {
+      distributed.add(edge.to);
+    }
+  }
+  return distributed;
+}
+
 export interface PropagationResult {
   nodeResults: Record<string, NodeResult>;
   edgeFlows: Record<string, Flow>;
@@ -34,6 +57,7 @@ interface NodePropagationContext {
   registry: NodeTypeRegistry;
   state: PropagationState;
   tickState?: TickState;
+  distributedUpstream: Set<string>;
 }
 
 interface ChannelPropagation {
@@ -43,7 +67,7 @@ interface ChannelPropagation {
   outboundMultiplier: number;
 }
 
-function aggregateIncomingFlow(
+export function aggregateIncomingFlow(
   nodeId: string,
   graph: Graph,
   edgeFlows: Record<string, Flow>,
@@ -118,8 +142,23 @@ function resolveChannelFlow(
   isSource: boolean,
 ): number {
   const direct = channelValue(routingFlow, channel);
+  // sync→async: um nó com entrada síncrona (read/write) e saída async empacota
+  // read+write no canal async — é o que alimenta uma fila a jusante.
   if (channel === "async" && direct <= 0 && hasAsyncOutgoing && !isSource) {
     return routingFlow.read + routingFlow.write;
+  }
+  // async→sync: o espelho — um worker consome async e re-emite síncrono
+  // (read/write) ao processar. Sua vazão de saída é dirigida pelo throughput
+  // async que ele recebeu, então um canal síncrono sem fluxo direto (a entrada
+  // do worker é só async) carrega o async de entrada adiante (ex.: worker que
+  // escreve no db). Sem isso, a escrita nunca chega ao destino síncrono.
+  if (
+    channel !== "async" &&
+    direct <= 0 &&
+    routingFlow.async > 0 &&
+    !isSource
+  ) {
+    return routingFlow.async;
   }
   return direct;
 }
@@ -170,6 +209,7 @@ function propagateNodeChannels(
       channelFlow * outboundScale,
       graph,
       registry,
+      ctx.distributedUpstream,
     );
 
     if (!apportion.hasValidDestination) {
@@ -215,6 +255,7 @@ function processNode(
   state.nodeResults[nodeId] = handler.compute(deliveredLambda, resolved, {
     params,
     tickState: ctx.tickState,
+    distributed: ctx.distributedUpstream.has(nodeId),
   });
 
   propagateNodeChannels(ctx, {
@@ -244,6 +285,7 @@ export function propagate(
     registry,
     state,
     tickState,
+    distributedUpstream: computeDistributedUpstream(graph, registry),
   };
 
   for (const nodeId of order) {

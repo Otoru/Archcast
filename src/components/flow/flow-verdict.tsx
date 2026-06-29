@@ -30,15 +30,34 @@ function formatLoad(rho: number): string {
   return `${pct < 1 && pct > 0 ? pct.toFixed(1) : pct.toFixed(0)}%`;
 }
 
-/** Par rótulo/valor das métricas de cada nó (load, latency, instances, dropped). */
+/**
+ * Formata o uso de storage como porcentagem da capacidade (usado / cap). Mesmo
+ * estilo do `Load`: satura em ">100%" no overflow (o número absoluto fica na
+ * violação de storage). Mantém o stat numa linha só, sem quebra.
+ */
+function formatStorageUsage(usedGB: number, capGB: number): string {
+  if (capGB <= 0) {
+    return "0%";
+  }
+  const pct = (usedGB / capGB) * 100;
+  if (pct > 100) {
+    return ">100%";
+  }
+  return `${pct < 1 && pct > 0 ? pct.toFixed(1) : pct.toFixed(0)}%`;
+}
+
+/** Par rótulo/valor das métricas de cada nó (load, latency, instances, dropped, storage). */
 function NodeStat({
   label,
   value,
-}: Readonly<{ label: string; value: string }>) {
+  danger = false,
+}: Readonly<{ label: string; value: string; danger?: boolean }>) {
   return (
     <div className="flex items-baseline justify-between gap-2">
       <span className="wf-text-caption text-wf-ink-soft">{label}</span>
-      <span className="wf-text-small font-semibold text-wf-ink tabular-nums">
+      <span
+        className={`wf-text-small font-semibold tabular-nums ${danger ? "text-wf-destructive" : "text-wf-ink"}`}
+      >
         {value}
       </span>
     </div>
@@ -196,14 +215,25 @@ export function FlowVerdict({
               <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                 <NodeStat label="Load" value={formatLoad(row.rho)} />
                 <NodeStat
-                  label="Latency"
-                  value={`${row.latency.toFixed(0)} ms`}
+                  label="Latency p99"
+                  value={
+                    Number.isFinite(row.latency)
+                      ? `${row.latency.toFixed(0)} ms`
+                      : "∞ ms"
+                  }
                 />
                 <NodeStat label="Instances" value={String(row.provisioned)} />
                 {row.dropped > 0 ? (
                   <NodeStat
                     label="Dropped"
                     value={`${Math.round(row.dropped)} rps`}
+                  />
+                ) : null}
+                {row.storageCap > 0 ? (
+                  <NodeStat
+                    label="Storage"
+                    value={formatStorageUsage(row.storageUsed, row.storageCap)}
+                    danger={row.storageUsed > row.storageCap}
                   />
                 ) : null}
               </div>

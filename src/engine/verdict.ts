@@ -18,6 +18,7 @@ interface BuildVerdictInput {
   structureViolations: Violation[];
   presenceViolations: Violation[];
   spofViolations: Violation[];
+  storageViolations?: Violation[];
   saturatedNodes?: Set<string>;
   ratelimitedNodes?: Set<string>;
   weightedP99Latency?: number;
@@ -111,6 +112,7 @@ export function buildVerdict(input: BuildVerdictInput): Verdict {
     ...input.structureViolations,
     ...input.presenceViolations,
     ...input.spofViolations,
+    ...(input.storageViolations ?? []),
     ...collectSaturationViolations(input.nodeResults, input.saturatedNodes),
     ...collectRatelimitViolations(input.nodeResults, input.ratelimitedNodes),
   ];

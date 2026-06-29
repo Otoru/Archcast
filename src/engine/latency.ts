@@ -30,7 +30,22 @@ function channelLatencyFromNode(
     (edge) => edge.from === nodeId && edge.kind === channel,
   );
 
-  const absorberNodes: string[] = [];
+  // Fração do tráfego que ESTE nó repassa adiante. Para um server comum é 1
+  // (encaminha tudo); para um absorvedor-encaminhador (CDN/WAF) é
+  // `1 − hitRatio` — só os misses atingem o origin a jusante. É o espelho de
+  // `outboundMultiplier` (usado em `propagate` no lado carga) aplicado ao lado
+  // latência: o p99 do origin só é pago na fração que de fato chega lá. Mesma
+  // lógica do cache-aside (irmão absorvedor), agora estendida ao CDN em série.
+  const currentNode = nodeById.get(nodeId);
+  let nodeForwardRatio = 1;
+  if (currentNode) {
+    const currentHandler = registry.getHandler(currentNode);
+    const currentResolved = registry.resolve(currentNode);
+    nodeForwardRatio =
+      currentHandler.outboundMultiplier?.(currentResolved) ?? 1;
+  }
+
+  const absorberNodes: Array<{ id: string; passThrough: number }> = [];
   const serverNodes: string[] = [];
 
   for (const edge of outgoing) {
@@ -51,17 +66,31 @@ function channelLatencyFromNode(
     }
 
     if (role.kind === "absorber") {
-      absorberNodes.push(destNode.id);
+      absorberNodes.push({ id: destNode.id, passThrough: role.passThrough });
     } else if (role.kind === "server") {
       serverNodes.push(destNode.id);
     }
   }
 
-  for (const absorberId of absorberNodes) {
-    total += nodeP99(nodeResults, absorberId);
+  // O lookup no cache-aside é sempre pago (hit ou miss): soma-se o p99 do
+  // absorvedor integralmente.
+  for (const absorber of absorberNodes) {
+    total += nodeP99(nodeResults, absorber.id);
   }
 
   if (serverNodes.length > 0) {
+    // O servidor a jusante (ex.: DB num cache-aside, ou o origin atrás de um
+    // CDN) só é atingido numa fração dos pedidos: pesa-se o p99 do caminho
+    // adiante pelo produto do `nodeForwardRatio` deste nó (miss ratio do
+    // CDN/WAF) pelos `passThrough` dos absorvedores irmãos (miss ratio do
+    // cache) — mesmo residual usado em `apportionChannel`. Assim um cache/CDN
+    // com 90% de hit reduz a contribuição do origin a 10% —
+    // colocar/remover move o verdict de forma visível, esteja o origin saturado
+    // ou não.
+    const passThroughProduct = absorberNodes.reduce(
+      (acc, absorber) => acc * absorber.passThrough,
+      nodeForwardRatio,
+    );
     const serverLatencies = serverNodes.map((serverId) => {
       return channelLatencyFromNode(
         serverId,
@@ -71,7 +100,7 @@ function channelLatencyFromNode(
         nodeResults,
       );
     });
-    total += Math.max(...serverLatencies);
+    total += passThroughProduct * Math.max(...serverLatencies);
   }
 
   return total;

@@ -25,6 +25,7 @@ describe("defaultChallengeParams", () => {
       readWriteRatio: 0.7,
       latencySlo: 200,
       availabilitySlo: 0.999,
+      bytesPerWrite: 0,
     });
   });
 });
@@ -237,6 +238,12 @@ describe("formatadores", () => {
   it("formatPercent", () => {
     expect(formatPercent(0.9995)).toBe("99.950%");
     expect(formatPercent(0.5, 1)).toBe("50.0%");
+    // Um valor < 1 nunca exibe "100%" (arredondamento mentiria sobre uma
+    // disponibilidade impossível) — trava no maior representável na precisão.
+    expect(formatPercent(0.99999, 2)).toBe("99.99%");
+    expect(formatPercent(0.9999999, 3)).toBe("99.999%");
+    // Um 1 genuíno ainda mostra 100%.
+    expect(formatPercent(1, 2)).toBe("100.00%");
   });
 });
 

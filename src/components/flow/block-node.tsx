@@ -25,7 +25,12 @@ import {
 } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { type BlockPreset, getPreset, type Layer } from "@/engine";
+import {
+  type BlockPreset,
+  DEFAULT_INSTANCES,
+  getPreset,
+  type Layer,
+} from "@/engine";
 import type { EdgeChannel } from "@/engine/types";
 import { cn } from "@/lib/utils";
 
@@ -98,6 +103,15 @@ export const LAYER_META: Record<Layer, LayerMeta> = {
 export const HANDLE_CLASS =
   "!size-2.5 !rounded-full !border-2 !border-wf-border !bg-wf-surface";
 
+/**
+ * Número máximo de cartões-fantasma renderizados atrás do nó para sugerir
+ * empilhamento. Além disso o selo `×N` carrega o valor exato — pilhas maiores
+ * ficariam visualmente grotescas (offset cumulativo grande) sem ganho de clareza.
+ */
+const MAX_STACK_GHOSTS = 2;
+/** Deslocamento (px) de cada cartão-fantasma em relação ao anterior. */
+const STACK_OFFSET_PX = 6;
+
 /** Renderiza o "ponto" de uma porta — `Handle` real no canvas, span estático na imagem de drag. */
 export type DotRenderer = (
   channel: EdgeChannel,
@@ -121,6 +135,7 @@ export function BlockNodeShell({
   bottleneckPulse = false,
   saturated = false,
   saturatedPulse = false,
+  instances = DEFAULT_INSTANCES,
   onDelete,
 }: {
   preset: BlockPreset;
@@ -136,6 +151,8 @@ export function BlockNodeShell({
   saturated?: boolean;
   /** Pisca o node saturado em vermelho: só anima com o run ativo (para no Stop). */
   saturatedPulse?: boolean;
+  /** Cópias paralelas do bloco (`instances`). >1 ativa o empilhamento visual. */
+  instances?: number;
   /** Quando presente, mostra um X no canto superior direito que apaga o nó. */
   onDelete?: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
@@ -143,79 +160,143 @@ export function BlockNodeShell({
   const ins = preset.edges.in;
   const outs = preset.edges.out;
   const hasPorts = ins.length > 0 || outs.length > 0;
+  // Empilhamento: nº de cartões-fantasma atrás do nó (cap em MAX_STACK_GHOSTS).
+  const ghostCount = Math.max(0, Math.min(instances - 1, MAX_STACK_GHOSTS));
+  const showStack = ghostCount > 0;
+
+  // Borda/anel do estado atual (prioridade mutuamente exclusiva, para não
+  // depender da ordem do CSS gerado): invalid > saturated > bottleneck >
+  // selected. Aplicada ao cartão principal. Compartilhada com os fantasmas
+  // (exceto no bottleneck — ver `ghostBorderClass`) para a pilha inteira
+  // pintar o estado de run em vez de só o topo. `invalid` só fora do run;
+  // `saturated`/`bottleneck` só no run.
+  const stateBorderClass = cn(
+    selected &&
+      !invalid &&
+      !saturated &&
+      !bottleneck &&
+      "border-wf-focus ring-wf-focus",
+    bottleneck && !invalid && !saturated && "border-wf-focus",
+    saturated && !invalid && "border-wf-destructive ring-wf-destructive",
+    invalid && "border-wf-destructive ring-wf-destructive",
+  );
+  // Borda dos fantasmas: mesma cor do estado, EXCETO no bottleneck, onde o
+  // traço foco cai para 1px (`border`) — o preto 2px em cada card da pilha
+  // ficava pesado/feio. Ternário em vez de camadas para emitir só um par
+  // width+color (evita conflito `border`/`border-2` decidido por ordem de
+  // CSS). Saturated/invalid/selected seguem o cartão principal (vermelho/foco
+  // em 2px — o vermelho é alarme e não incomora).
+  const ghostBorderClass = invalid
+    ? "border-2 border-wf-destructive ring-wf-destructive"
+    : saturated
+      ? "border-2 border-wf-destructive ring-wf-destructive"
+      : bottleneck
+        ? "border border-wf-focus"
+        : selected
+          ? "border-2 border-wf-focus ring-wf-focus"
+          : "border-2 border-wf-border";
+  // Pulso (animação do anel) só no cartão principal: replicate em todos os
+  // fantasmas viraria ruído visual (vários anéis pulsando defasados pelo
+  // offset). A borda colorida já cobre a pilha inteira; o topo pisca.
+  const pulseClass = cn(
+    bottleneckPulse && !saturated && "wf-bottleneck-pulse",
+    saturatedPulse && "wf-saturated-pulse",
+  );
 
   return (
-    <div
-      className={cn(
-        "relative w-52 rounded-wf border-2 border-wf-border bg-wf-surface text-wf-ink",
-        // Prioridade da borda (mutuamente exclusiva, para não depender da ordem
-        // do CSS gerado): invalid > saturated > bottleneck > selected.
-        // `invalid` só ocorre fora do run; `saturated`/`bottleneck` só no run.
-        selected &&
-          !invalid &&
-          !saturated &&
-          !bottleneck &&
-          "border-wf-focus ring-wf-focus",
-        // bottleneck (max ρ) ainda não saturado: borda foco, pulso suave.
-        bottleneck && !invalid && !saturated && "border-wf-focus",
-        bottleneckPulse && !saturated && "wf-bottleneck-pulse",
-        // saturated (ρ ≥ 1) vence sobre o bottleneck: vermelho e piscando,
-        // presente só durante o run (some ao apertar Stop).
-        saturated && !invalid && "border-wf-destructive ring-wf-destructive",
-        saturatedPulse && "wf-saturated-pulse",
-        // `invalid` (ciclo/aresta inválida) sinaliza mesmo selecionado.
-        invalid && "border-wf-destructive ring-wf-destructive",
-      )}
-    >
-      {onDelete ? (
-        <button
-          type="button"
-          aria-label={`Delete ${preset.label}`}
-          onClick={onDelete}
-          // nodrag: impede o RF de iniciar o arraste do nó ao clicar no X.
-          className="nodrag absolute -right-2 -top-2 z-10 inline-flex size-5 cursor-pointer items-center justify-center rounded-full border-2 border-wf-border bg-wf-surface text-wf-ink-soft shadow-sm transition-colors hover:border-wf-destructive hover:text-wf-destructive focus-visible:ring-2 focus-visible:ring-wf-focus"
-        >
-          <X className="size-3" aria-hidden="true" />
-        </button>
-      ) : null}
-      <div className="flex items-center gap-2 px-3 pt-2">
-        <Icon className="size-4 shrink-0 text-wf-ink-soft" aria-hidden="true" />
-        <span className="truncate font-wf-heading text-sm text-wf-ink">
-          {preset.label}
-        </span>
-      </div>
-      <div className="px-3 pb-2 pt-1">
-        <Badge variant="secondary" size="sm">
-          {meta.label}
-        </Badge>
-      </div>
-
-      {hasPorts && (
-        <div className="pb-2">
-          {ins.map((channel) => (
-            <div
-              key={`in-${channel}`}
-              className="relative flex h-5 items-center justify-start pl-3"
+    <div className="relative">
+      {showStack
+        ? Array.from({ length: ghostCount }, (_, k) => {
+            // Ordem DECRESCENTE de offset: o fantasma mais afastado entra
+            // primeiro no DOM e fica por baixo; o mais próximo (offset menor)
+            // entra por último e pinta por cima — formando a cascata correta
+            // (sem isso, o fantasma de offset maior cobre o menor e some um card).
+            const offset = (ghostCount - k) * STACK_OFFSET_PX;
+            return (
+              <div
+                key={`stack-${offset}`}
+                aria-hidden="true"
+                className={cn(
+                  "pointer-events-none absolute inset-0 -z-10 rounded-wf bg-wf-surface",
+                  ghostBorderClass,
+                )}
+                style={{
+                  transform: `translate(${offset}px, ${offset}px)`,
+                }}
+              />
+            );
+          })
+        : null}
+      <div
+        className={cn(
+          "relative z-0 w-52 rounded-wf border-2 border-wf-border bg-wf-surface text-wf-ink",
+          stateBorderClass,
+          pulseClass,
+        )}
+      >
+        {onDelete ? (
+          <button
+            type="button"
+            aria-label={`Delete ${preset.label}`}
+            onClick={onDelete}
+            // nodrag: impede o RF de iniciar o arraste do nó ao clicar no X.
+            className="nodrag absolute -right-2 -top-2 z-10 inline-flex size-5 cursor-pointer items-center justify-center rounded-full border-2 border-wf-border bg-wf-surface text-wf-ink-soft shadow-sm transition-colors hover:border-wf-destructive hover:text-wf-destructive focus-visible:ring-2 focus-visible:ring-wf-focus"
+          >
+            <X className="size-3" aria-hidden="true" />
+          </button>
+        ) : null}
+        <div className="flex items-center gap-2 px-3 pt-2">
+          <Icon
+            className="size-4 shrink-0 text-wf-ink-soft"
+            aria-hidden="true"
+          />
+          <span className="truncate font-wf-heading text-sm text-wf-ink">
+            {preset.label}
+          </span>
+          {instances > 1 ? (
+            <Badge
+              variant="secondary"
+              size="sm"
+              className="ml-auto shrink-0 tabular-nums"
+              title={`${instances} instances`}
             >
-              {renderDot(channel, "in")}
-              <span className="wf-text-caption font-wf-heading text-wf-ink-soft">
-                {channel}
-              </span>
-            </div>
-          ))}
-          {outs.map((channel) => (
-            <div
-              key={`out-${channel}`}
-              className="relative flex h-5 items-center justify-end pr-3"
-            >
-              <span className="wf-text-caption font-wf-heading text-wf-ink-soft">
-                {channel}
-              </span>
-              {renderDot(channel, "out")}
-            </div>
-          ))}
+              ×{instances}
+            </Badge>
+          ) : null}
         </div>
-      )}
+        <div className="px-3 pb-2 pt-1">
+          <Badge variant="secondary" size="sm">
+            {meta.label}
+          </Badge>
+        </div>
+
+        {hasPorts && (
+          <div className="pb-2">
+            {ins.map((channel) => (
+              <div
+                key={`in-${channel}`}
+                className="relative flex h-5 items-center justify-start pl-3"
+              >
+                {renderDot(channel, "in")}
+                <span className="wf-text-caption font-wf-heading text-wf-ink-soft">
+                  {channel}
+                </span>
+              </div>
+            ))}
+            {outs.map((channel) => (
+              <div
+                key={`out-${channel}`}
+                className="relative flex h-5 items-center justify-end pr-3"
+              >
+                <span className="wf-text-caption font-wf-heading text-wf-ink-soft">
+                  {channel}
+                </span>
+                {renderDot(channel, "out")}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -248,6 +329,11 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNode>) {
   }
 
   const meta = LAYER_META[preset.layer];
+  // Mesmo fallback do inspector (`node-attrs-form.tsx`): override do nó →
+  // default do preset → constante. Client-layer não expõe instances, mas o
+  // fallback resolve 1 e nada do empilhamento é renderizado.
+  const instances =
+    data.attrs?.instances ?? preset.defaults.instances ?? DEFAULT_INSTANCES;
   // Destaques do modo run. O alarme de saturação (ρ ≥ 1) é vermelho e piscando,
   // e existe SÓ enquanto o run está ativo — ao apertar Stop o vermelho some
   // (não fica congelado, ao contrário do bottleneck). `saturated` vence sobre
@@ -287,6 +373,7 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNode>) {
       bottleneckPulse={bottleneckPulse}
       saturated={saturated}
       saturatedPulse={saturatedPulse}
+      instances={instances}
       // Durante o run a estrutura está travada — esconde o botão de apagar.
       onDelete={
         runState.running

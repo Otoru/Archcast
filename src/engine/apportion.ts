@@ -1,6 +1,6 @@
 import type { NodeTypeRegistry } from "@/engine/registry";
 import type { EdgeChannel, Graph } from "@/engine/types";
-import { effectiveCapacity } from "@/engine/types";
+import { distributedCapacity } from "@/engine/types";
 
 export interface ApportionResult {
   deliveries: Map<string, number>;
@@ -23,6 +23,10 @@ export function apportionChannel(
   flow: number,
   graph: Graph,
   registry: NodeTypeRegistry,
+  // Defaults to "no distributor upstream" (conservative: `instances` does not
+  // scale capacity). The production caller in `propagate.ts` passes the real
+  // set computed from the graph's distributor edges.
+  distributedUpstream: Set<string> = new Set(),
 ): ApportionResult {
   const deliveries = new Map<string, number>();
 
@@ -66,6 +70,9 @@ export function apportionChannel(
   const absorbers: ClassifiedEdge[] = [];
   const servers: ClassifiedEdge[] = [];
   const broadcasters: ClassifiedEdge[] = [];
+  // Absorvedores-encaminhadores (CDN/WAF) irmãos: têm `roleFor` = server, mas
+  // são identificados pelo primitive. `hitRatio` = fração que servem direto.
+  const forwarders: { edgeId: string; hitRatio: number }[] = [];
 
   for (const edge of outgoing) {
     const destNode = nodeById.get(edge.to);
@@ -91,6 +98,10 @@ export function apportionChannel(
       absorbers.push(classified);
     } else if (role.kind === "broadcaster") {
       broadcasters.push(classified);
+    } else if (resolved.primitive === "absorber-forwarding") {
+      // outboundMultiplier = 1 − hitRatio (fração de miss repassada adiante).
+      const passThrough = handler.outboundMultiplier?.(resolved) ?? 1;
+      forwarders.push({ edgeId: edge.id, hitRatio: 1 - passThrough });
     } else {
       servers.push(classified);
     }
@@ -99,7 +110,8 @@ export function apportionChannel(
   if (
     absorbers.length === 0 &&
     servers.length === 0 &&
-    broadcasters.length === 0
+    broadcasters.length === 0 &&
+    forwarders.length === 0
   ) {
     return { deliveries, hasValidDestination: false };
   }
@@ -119,8 +131,25 @@ export function apportionChannel(
     deliveries.set(absorber.edgeId, flow);
   }
 
+  // Encaminhadores SEM servers irmãos: é o caso série (ex.: client → cdn →
+  // origin). O hit ratio TAMBÉM se aplica aqui, só que adiante: o CDN recebe o
+  // fluxo cheio (precisa pra calcular o próprio rho — toda request consulta o
+  // cache) e repassa só os misses pro origin via `outboundMultiplier` em
+  // `propagate` (origin vê `(1−hitRatio)×flow`). Aplicar `hitRatio` aqui também
+  // contaria o desconto duas vezes — por isso o CDN recebe o `residual` cheio.
   if (servers.length === 0) {
+    for (const forwarder of forwarders) {
+      deliveries.set(forwarder.edgeId, residual);
+    }
     return { deliveries, hasValidDestination: true };
+  }
+
+  // Encaminhadores COM servers irmãos: o cliente roteia a fração de hit pro
+  // CDN (servida direto) e só os misses seguem pros servers. Cada CDN tira
+  // `hitRatio × residual` do topo; o restante desce pros servers.
+  for (const forwarder of forwarders) {
+    deliveries.set(forwarder.edgeId, forwarder.hitRatio * residual);
+    residual *= 1 - forwarder.hitRatio;
   }
 
   const totalWeight = servers.reduce((sum, server) => {
@@ -132,7 +161,13 @@ export function apportionChannel(
     if (useWeighted && server.edgeWeight !== undefined) {
       return sum + server.edgeWeight;
     }
-    return sum + effectiveCapacity(resolved.attrs);
+    return (
+      sum +
+      distributedCapacity(
+        resolved.attrs,
+        distributedUpstream.has(server.nodeId),
+      )
+    );
   }, 0);
 
   const equalSplit = totalWeight <= 0;
@@ -148,7 +183,10 @@ export function apportionChannel(
       : totalWeight > 0
         ? (useWeighted && server.edgeWeight !== undefined
             ? server.edgeWeight
-            : effectiveCapacity(resolved.attrs)) / totalWeight
+            : distributedCapacity(
+                resolved.attrs,
+                distributedUpstream.has(server.nodeId),
+              )) / totalWeight
         : 0;
     deliveries.set(server.edgeId, residual * weight);
   }

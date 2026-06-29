@@ -119,18 +119,58 @@ const CACHE_ASIDE = doc(
 );
 
 /**
+ * RAG / AI assistant: leitura segue `web-client → api-gateway → app-server →
+ * LLM → vector-db` (o LLM recupera contexto do banco vetorial antes de
+ * responder); a escrita faz a ingestão de embeddings direto `app-server →
+ * vector-db`. Workload de IA é baixo volume + latência alta, então o desafio
+ * declara SLO próprio (20 rps / p99 5s) — não o padrão de 1000 rps/200ms. O
+ * LLM é uma frota de inferência auto-hospedada (não-elástica): capacity baixo
+ * satura rápido, e como o upstream imediato é o `app-server` (não um
+ * distribuidor), `instances` só levanta disponibilidade — a capacidade fica no
+ * limite de uma instância, exercitando o gargalo de inferência. Tiers
+ * replicados (instances≥2) eliminam SPOFs no path único.
+ */
+const RAG = doc(
+  [
+    n("wc", "web-client", 0, 240),
+    n("gw", "api-gateway", 360, 360, { instances: 2 }),
+    n("app", "app-server", 720, 360, { instances: 3, latBase: 10 }),
+    n("llm", "llm-inference", 1080, 240, { instances: 2 }),
+    n("vdb", "vector-db", 1080, 480, { instances: 2 }),
+  ],
+  [
+    e("e1", "wc", "gw", "read"),
+    e("e2", "gw", "app", "read"),
+    e("e3", "app", "llm", "read"),
+    e("e4", "llm", "vdb", "read"),
+    e("e5", "wc", "gw", "write"),
+    e("e6", "gw", "app", "write"),
+    e("e7", "app", "vdb", "write"),
+  ],
+  {
+    rps: 20,
+    trafficPattern: "steady",
+    readWriteRatio: 0.9,
+    latencySlo: 5000,
+    availabilitySlo: 0.999,
+  },
+);
+
+/**
  * Grafos iniciais prontos pra carregar (menu Presets). Cada um exercita um
- * padrão e representa uma topologia de produção sadia que PASSA o desafio
- * padrão (1000 rps / SLO 200ms p99 / 99,9% disponibilidade): tiers stateless
- * replicados (instances≥2) eliminam SPOFs e sustentam a disponibilidade em
- * série. E-commerce (CDN com origin em object storage, API gateway+cache+DB),
+ * padrão e representa uma topologia de produção sadia que PASSA o desafio do
+ * próprio `doc.params` (por padrão 1000 rps / SLO 200ms p99 / 99,9%
+ * disponibilidade; o RAG usa SLO de IA): tiers stateless replicados
+ * (instances≥2) eliminam SPOFs e sustentam a disponibilidade em série.
+ * E-commerce (CDN com origin em object storage, API gateway+cache+DB),
  * Queue+Workers (escrita assíncrona via fila drenando pra workers + leitura
  * síncrona direta), Cache-aside (Cache `absorber-aside` com hitRatio 0.85 — a
  * maior parte da leitura é absorvida pelo cache e só os misses chegam ao DB —
- * mais caminho de escrita direto).
+ * mais caminho de escrita direto), RAG (LLM + vector-db com SLO de IA).
  */
 export const PRESET_GRAPHS: PresetGraph[] = [
   { id: "ecommerce", title: "E-commerce", doc: ECOMMERCE },
   { id: "queue-workers", title: "Queue + Workers", doc: QUEUE_WORKERS },
   { id: "cache-aside", title: "Cache-aside", doc: CACHE_ASIDE },
+  { id: "rag", title: "RAG / AI Assistant", doc: RAG },
 ];

@@ -120,6 +120,10 @@ export function FlowParamsForm({
             items={TRAFFIC_PATTERN_ITEMS}
             value={patternOption}
             disabled={disabled}
+            // Select-only (no search input): disable internal filtering so all
+            // patterns stay visible — otherwise the menu shows only the
+            // currently-selected option.
+            filter={null}
             onValueChange={(option) => {
               if (option) {
                 onChange({
@@ -159,6 +163,20 @@ export function FlowParamsForm({
             disabled={disabled}
             value={String(params.latencySlo)}
             onChange={requiredNumber("latencySlo")}
+          />
+        </Field>
+
+        <Field>
+          <Field.Label htmlFor="param-bytes-per-write">
+            Bytes per write
+          </Field.Label>
+          <Input
+            id="param-bytes-per-write"
+            type="number"
+            min={0}
+            disabled={disabled}
+            value={String(params.bytesPerWrite ?? 0)}
+            onChange={requiredNumber("bytesPerWrite")}
           />
         </Field>
 

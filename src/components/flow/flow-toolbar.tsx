@@ -200,10 +200,14 @@ export function FlowToolbar({
           <Menubar.Menu>
             <Menubar.Trigger>File</Menubar.Trigger>
             <Menubar.Content>
-              <Menubar.Item onClick={graphIO.importGraph}>Import…</Menubar.Item>
+              <Menubar.Item disabled={running} onClick={graphIO.importGraph}>
+                Import…
+              </Menubar.Item>
               <Menubar.Item onClick={graphIO.exportGraph}>Export…</Menubar.Item>
               <Menubar.Separator />
-              <Menubar.Item onClick={handleClear}>Clear canvas</Menubar.Item>
+              <Menubar.Item disabled={running} onClick={handleClear}>
+                Clear canvas
+              </Menubar.Item>
             </Menubar.Content>
           </Menubar.Menu>
           <Menubar.Menu>
@@ -212,6 +216,7 @@ export function FlowToolbar({
               {PRESET_GRAPHS.map((preset) => (
                 <Menubar.Item
                   key={preset.id}
+                  disabled={running}
                   onClick={() => handlePreset(preset)}
                 >
                   {preset.title}

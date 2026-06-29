@@ -116,12 +116,19 @@ function ComboboxRoot<Value, Multiple extends boolean | undefined = false>({
   multiple,
   className,
   children,
+  filter,
   ...props
 }: Readonly<ComboboxRootProps<Value, Multiple>>) {
-  const filter = ComboboxPrimitive.useFilter({
+  const defaultFilter = ComboboxPrimitive.useFilter({
     multiple: Boolean(multiple),
     value: props.value,
   });
+  // Default to substring matching, but let callers opt out. Passing
+  // `filter={null}` disables internal filtering — needed when the combobox is
+  // used as a plain select (no `Combobox.Search` input): otherwise the input
+  // value tracks the selected item's label and the list filters down to just
+  // that single match, so the menu only ever shows one option at a time.
+  const resolvedFilter = filter === undefined ? defaultFilter.contains : filter;
   const [valueLabelId, setValueLabelId] = useState<string>();
   const registerValueLabelId = useCallback((id: string) => {
     setValueLabelId(id);
@@ -142,7 +149,7 @@ function ComboboxRoot<Value, Multiple extends boolean | undefined = false>({
   return (
     <ComboboxContext.Provider value={contextValue}>
       <ComboboxPrimitive.Root
-        filter={filter.contains}
+        filter={resolvedFilter}
         multiple={multiple}
         items={items as ComboboxPrimitive.Root.Props<Value, Multiple>["items"]}
         {...props}

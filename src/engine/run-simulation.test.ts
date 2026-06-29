@@ -280,7 +280,7 @@ describe("runSimulation", () => {
     expect(verdict.nodes.db?.rho).toBeCloseTo((16 + 20) / 500);
   });
 
-  it("13: read latency sums cache p99 in series with max server p99", () => {
+  it("13: read latency weights downstream server p99 by cache miss ratio", () => {
     const graph = makeGraph(
       [
         sourceNode("src"),
@@ -300,10 +300,12 @@ describe("runSimulation", () => {
       defaultParams({ rps: 10, readWriteRatio: 1 }),
     );
 
+    // Cache lookup always paid; DB only reached on a miss → its p99 weighted
+    // by passThrough = 1 − hitRatio = 0.2.
     const expected =
       p99FromLatency(verdict.nodes.app?.latency ?? 0) +
       p99FromLatency(verdict.nodes.cache?.latency ?? 0) +
-      p99FromLatency(verdict.nodes.db?.latency ?? 0);
+      0.2 * p99FromLatency(verdict.nodes.db?.latency ?? 0);
 
     expect(verdict.endToEndLatency).toBeCloseTo(expected);
   });
@@ -341,7 +343,12 @@ describe("runSimulation", () => {
     expect(noDestination?.severity).toBe("warn");
   });
 
-  it("15: instances=3 matches three-way replica split", () => {
+  it("15: instances=3 behind a load balancer matches three-way replica split", () => {
+    // Three separate db nodes are distributed by the app's apportion (each is
+    // its own instance, no LB needed). A single db with instances=3 needs a
+    // distributor upstream to scale capacity — without one, `instances` only
+    // helps availability, not capacity (you can't split traffic across
+    // instances you can't reach).
     const splitGraph = makeGraph(
       [
         sourceNode("src"),
@@ -362,11 +369,13 @@ describe("runSimulation", () => {
       [
         sourceNode("src"),
         serverNode("app", { capacity: 10000, latBase: 1 }),
+        presetNode("lb", "load-balancer", {}),
         serverNode("db", { capacity: 100, latBase: 2, instances: 3 }),
       ],
       [
         { id: "e1", from: "src", to: "app", kind: "read" },
-        { id: "e2", from: "app", to: "db", kind: "read" },
+        { id: "e2", from: "app", to: "lb", kind: "read" },
+        { id: "e3", from: "lb", to: "db", kind: "read" },
       ],
     );
 
@@ -383,8 +392,34 @@ describe("runSimulation", () => {
     );
   });
 
-  it("16: production cache preset absorbs 85% of reads (cache-aside via catalog)", () => {
-    // Usa o preset de produção `cache` (absorber-aside, hitRatio default 0.85)
+  it("15b: instances without a distributor upstream do NOT scale capacity", () => {
+    // Same db (capacity 100, instances 3) as test 15, but WITHOUT a load
+    // balancer upstream. Without a distributor, `instances` only helps
+    // availability — capacity stays 100, so rho = 900/100 = 9 (not 3).
+    const graph = makeGraph(
+      [
+        sourceNode("src"),
+        serverNode("app", { capacity: 10000, latBase: 1 }),
+        serverNode("db", { capacity: 100, latBase: 2, instances: 3 }),
+      ],
+      [
+        { id: "e1", from: "src", to: "app", kind: "read" },
+        { id: "e2", from: "app", to: "db", kind: "read" },
+      ],
+    );
+
+    const verdict = runSimulation(
+      graph,
+      defaultParams({ rps: 900, readWriteRatio: 1 }),
+    );
+
+    expect(verdict.nodes.db?.rho).toBeCloseTo(9);
+    // Availability still benefits from instances (1 − (1−a)^3).
+    expect(verdict.nodes.db?.latency).toEqual(Number.POSITIVE_INFINITY);
+  });
+
+  it("16: production cache preset absorbs 90% of reads (cache-aside via catalog)", () => {
+    // Usa o preset de produção `cache` (absorber-aside, hitRatio default 0.90)
     // — sem registrar nenhum preset de teste. Valida D10: um novo bloco no
     // catálogo funciona sem código de handler/UI (NodeAttrsForm deriva os
     // campos de `preset.defaults`, BlockNode deriva as portas de `preset.edges`).
@@ -407,12 +442,43 @@ describe("runSimulation", () => {
       defaultParams({ rps: 1000, readWriteRatio: 1 }),
     );
 
-    // Cache absorve R (todas as leituras passam por ele); só os 15% de miss
-    // chegam ao DB (hitRatio 0.85 → 1−0.85 = 0.15).
+    // Cache absorve R (todas as leituras passam por ele); só os 10% de miss
+    // chegam ao DB (hitRatio 0.90 → 1−0.90 = 0.10).
     expect(verdict.edgeFlows.e2?.read).toBeCloseTo(1000);
-    expect(verdict.edgeFlows.e3?.read).toBeCloseTo(150);
+    expect(verdict.edgeFlows.e3?.read).toBeCloseTo(100);
     expect(
       graph.edges.some((edge) => edge.from === "cache" && edge.to === "db"),
     ).toBe(false);
+  });
+
+  it("17: worker consuming async re-emits sync write to its db", () => {
+    // async→sync: o app empacota a escrita no canal async (alimenta a fila); o
+    // worker consome o async e, ao processar, re-emite síncrono (write) pro db.
+    // Sem a conversão async→sync, a aresta worker→db ficava zerada — nenhuma
+    // escrita chegava ao banco apesar do tráfego.
+    const graph = makeGraph(
+      [
+        sourceNode("src"),
+        serverNode("app", { capacity: 1e5, latBase: 1 }),
+        presetNode("queue", "message-queue", {}),
+        presetNode("worker", "worker", {}),
+        serverNode("db", { capacity: 1e5, latBase: 5 }),
+      ],
+      [
+        { id: "e1", from: "src", to: "app", kind: "write" },
+        { id: "e2", from: "app", to: "queue", kind: "async" },
+        { id: "e3", from: "queue", to: "worker", kind: "async" },
+        { id: "e4", from: "worker", to: "db", kind: "write" },
+      ],
+    );
+
+    const verdict = runSimulation(
+      graph,
+      defaultParams({ rps: 100, readWriteRatio: 0 }),
+    );
+
+    expect(verdict.edgeFlows.e2?.async).toBeCloseTo(100);
+    expect(verdict.edgeFlows.e3?.async).toBeCloseTo(100);
+    expect(verdict.edgeFlows.e4?.write).toBeCloseTo(100);
   });
 });

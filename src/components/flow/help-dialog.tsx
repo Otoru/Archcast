@@ -37,6 +37,10 @@ const FIELDS: {
     title: "Availability SLO",
     desc: "Target uptime, from 0 to 1 (0.999 = 99.9%). The run fails if availability falls below this.",
   },
+  {
+    title: "Bytes per write",
+    desc: "Data written per write request. Combined with each database's retention window and max storage, the run estimates stored volume and fails on data loss when a database fills up. Adding instances does not add storage — replicas only help load and availability, so the full dataset must fit on one instance. Set to 0 to turn the check off.",
+  },
 ];
 
 /**
@@ -81,8 +85,9 @@ export function HelpDialog({
             <Muted className="mt-1">
               How utilized a node is: incoming traffic divided by its capacity
               (per-instance capacity × instances). In the verdict each node
-              shows this as <strong className="font-semibold text-wf-ink">Load</strong>{" "}
-              — a percentage when under 100%, or ≥100% when saturated.
+              shows this as{" "}
+              <strong className="font-semibold text-wf-ink">Load</strong> — a
+              percentage when under 100%, or ≥100% when saturated.
             </Muted>
             <ul className="mt-2 list-disc space-y-1 pl-4 wf-text-small text-wf-ink-soft">
               <li>

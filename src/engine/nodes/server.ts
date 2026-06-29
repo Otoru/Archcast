@@ -16,12 +16,11 @@ export const serverHandler: PrimitiveHandler = {
   compute: (
     deliveredLambda: number,
     resolved: ResolvedNode,
-    _ctx: { params: ChallengeParams },
+    ctx: { params: ChallengeParams; distributed?: boolean },
   ): NodeResult => {
     const { attrs, flags } = resolved;
     const capacity = attrs.capacity ?? 0;
     const latBase = attrs.latBase ?? 0;
-    const instances = attrs.instances ?? 1;
     const rateCap = attrs.rateCap;
 
     let servedLambda = deliveredLambda;
@@ -50,6 +49,12 @@ export const serverHandler: PrimitiveHandler = {
         provisioned,
       };
     }
+
+    // Sem distribuidor upstream, `instances` não escala capacidade (só
+    // disponibilidade) — não há como dividir tráfego entre as instâncias. O
+    // elástico acima se auto-provisiona, então não depende de distribuidor.
+    const distributed = ctx.distributed ?? false;
+    const instances = distributed ? (attrs.instances ?? 1) : 1;
 
     const result = computeQueue(servedLambda, capacity, latBase, instances);
     if (rejectedRps > 0) {

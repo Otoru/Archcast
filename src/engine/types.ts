@@ -21,6 +21,13 @@ export interface BlockFlags {
   weighted?: boolean;
   elastic?: boolean;
   drop?: boolean;
+  /**
+   * Marca o bloco como um distribuidor de carga (load-balancer, api-gateway).
+   * Um `server` a jusante só escala capacidade por `instances` se houver um
+   * distribuidor upstream — sem ele, múltiplas instâncias só ajudam a
+   * disponibilidade, não a capacidade (não há como dividir tráfego entre elas).
+   */
+  distribute?: boolean;
 }
 
 export interface BlockDefaults {
@@ -32,6 +39,19 @@ export interface BlockDefaults {
   availability?: number;
   instances?: number;
   rateCap?: number;
+  /**
+   * Capacidade de storage do nó (GB). Configuração do banco, não do challenge.
+   * Réplicas (`instances`) NÃO somam storage — o dataset inteiro precisa caber
+   * numa instância; réplicas servem pra load e SPOF. Usado pela checagem de
+   * perda de dados quando `ChallengeParams.bytesPerWrite` está setado.
+   */
+  maxStorage?: number;
+  /**
+   * Janela de retenção (dias) — por quanto tempo os dados escritos ficam
+   * armazenados antes de expirar. Quanto maior, mais volume acumulado (pior
+   * caso: taxa de escrita de pico sustentada por toda a janela).
+   */
+  retention?: number;
 }
 
 export interface BlockPreset {
@@ -57,6 +77,14 @@ export interface ChallengeParams {
   latencySlo: number;
   availabilitySlo: number;
   requiredKinds?: string[];
+  /**
+   * Volume escrito por requisição (bytes) — único parâmetro de storage que vive
+   * no challenge (workload). Se `0`/ausente, a checagem de storage fica
+   * desligada. Combinado com o `writeFlow` (já particionado pelo
+   * `readWriteRatio`) e o `retention` do nó, determina se o banco estoura o
+   * `maxStorage` (perda de dados).
+   */
+  bytesPerWrite?: number;
 }
 
 export interface NodeInstance {
@@ -92,6 +120,10 @@ export interface NodeResult {
   rejectedRps?: number;
   backlog?: number;
   outboundFlow?: number;
+  /** Volume de storage acumulado no nó (GB) — só pra UI, worst-case. */
+  storageUsed?: number;
+  /** Capacidade de storage do nó (GB) — só pra UI (`maxStorage`, sem `× instances`). */
+  storageCap?: number;
 }
 
 export interface ResolvedNode {
@@ -110,6 +142,12 @@ export interface TickState {
 export interface ComputeContext {
   params: ChallengeParams;
   tickState?: TickState;
+  /**
+   * `true` se este nó tem um distribuidor (load-balancer/api-gateway) imediato
+   * a montante. Para `server`, é o que libera o scaling de capacidade por
+   * `instances` — sem distribuidor, `instances` só afeta disponibilidade.
+   */
+  distributed?: boolean;
 }
 
 export interface PrimitiveHandler {
@@ -131,7 +169,8 @@ export interface Violation {
     | "presence"
     | "availability"
     | "spof"
-    | "ratelimit";
+    | "ratelimit"
+    | "storage";
   nodeId?: string;
   detail: string;
   /**
@@ -158,6 +197,24 @@ export const ELASTIC_TARGET_RHO = 0.7;
 
 export function effectiveCapacity(attrs: Record<string, number>): number {
   return (attrs.capacity ?? 0) * (attrs.instances ?? DEFAULT_INSTANCES);
+}
+
+/**
+ * Capacidade efetiva de um `server` considerando se há um distribuidor
+ * upstream. Com distribuidor, `instances` escala a capacidade (o balanceador
+ * divide o tráfego entre as instâncias); sem distribuidor, a capacidade é só a
+ * base — múltiplas instâncias sem balanceador não atendem mais requisições
+ * (só redundância/disponibilidade).
+ */
+export function distributedCapacity(
+  attrs: Record<string, number>,
+  distributed: boolean,
+): number {
+  const capacity = attrs.capacity ?? 0;
+  if (!distributed) {
+    return capacity;
+  }
+  return capacity * (attrs.instances ?? DEFAULT_INSTANCES);
 }
 
 export function effectiveAvailability(attrs: Record<string, number>): number {

@@ -11,6 +11,7 @@ import {
   type ChallengeParams,
   DEFAULT_INSTANCES,
   getPreset,
+  p99FromLatency,
   type Verdict,
   type Violation,
 } from "@/engine";
@@ -29,6 +30,7 @@ export function defaultChallengeParams(): ChallengeParams {
     readWriteRatio: 0.7,
     latencySlo: 200,
     availabilitySlo: 0.999,
+    bytesPerWrite: 0,
   };
 }
 
@@ -42,6 +44,8 @@ const ATTR_LABELS: Record<string, string> = {
   availability: "Availability",
   instances: "Instances",
   rateCap: "Rate cap (rps)",
+  maxStorage: "Max storage (GB)",
+  retention: "Retention (days)",
 };
 
 export type AttrField = { key: string; label: string };
@@ -98,6 +102,8 @@ export type NodeRow = {
   saturated: boolean;
   provisioned: number;
   dropped: number;
+  storageUsed: number;
+  storageCap: number;
 };
 
 export type VerdictSummary = {
@@ -123,6 +129,7 @@ export function violationBadgeVariant(violation: Violation): BadgeVariant {
     case "structure":
     case "spof":
     case "presence":
+    case "storage":
       return "destructive";
     default:
       return "warning";
@@ -165,11 +172,16 @@ export function nodeRows(verdict: Verdict, nodes: BlockNodeType[]): NodeRow[] {
       id,
       label: labelById.get(id) ?? id,
       rho: result.rho,
-      latency: result.latency,
+      // p99 do nó (latency × ln 100) — mesma grandeza somada no veredito
+      // (`computeEndToEndLatency`). Mostrar a média cru deixava o painel
+      // desconectado do `Latency p99` do veredito (~4,6× menor por nó).
+      latency: p99FromLatency(result.latency),
       saturated: result.saturated,
       provisioned:
         result.provisioned ?? instancesById.get(id) ?? DEFAULT_INSTANCES,
       dropped: result.dropped ?? 0,
+      storageUsed: result.storageUsed ?? 0,
+      storageCap: result.storageCap ?? 0,
     }))
     .sort((a, b) => b.rho - a.rho);
 }
@@ -209,9 +221,19 @@ export function summarizeVerdict(
   };
 }
 
-/** Formata uma razão 0–1 como percentual com `digits` casas. */
+/**
+ * Formata uma razão 0–1 como percentual com `digits` casas. Um valor < 1 nunca
+ * exibe "100%": `toFixed` arredonda (0.99995 → "100.00%"), o que mente sobre uma
+ * disponibilidade impossível. Nesse caso trava no maior valor representável
+ * abaixo de 100 na precisão dada (ex.: 99.99% com 2 casas). Um `1` genuíno
+ * (sem dependências a jusante) ainda mostra 100%.
+ */
 export function formatPercent(value: number, digits = 3): string {
-  return `${(value * 100).toFixed(digits)}%`;
+  const pct = value * 100;
+  if (value < 1 && Number(pct.toFixed(digits)) >= 100) {
+    return `${(100 - 10 ** -digits).toFixed(digits)}%`;
+  }
+  return `${pct.toFixed(digits)}%`;
 }
 
 /**

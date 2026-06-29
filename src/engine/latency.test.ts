@@ -31,7 +31,7 @@ function resultsFrom(
 }
 
 describe("computeEndToEndLatency", () => {
-  it("sums cache p99 in series with max server p99 on read path", () => {
+  it("weights downstream server p99 by cache miss ratio on read path", () => {
     const graph: Graph = {
       nodes: [
         sourceNode("src"),
@@ -55,7 +55,10 @@ describe("computeEndToEndLatency", () => {
 
     const latency = computeEndToEndLatency(graph, nodeResults, registry);
 
-    const expected = p99FromLatency(2) + p99FromLatency(1) + p99FromLatency(4);
+    // Cache lookup always paid (p99(1)); DB only reached on a miss → its p99
+    // is weighted by passThrough = 1 − hitRatio = 0.2.
+    const expected =
+      p99FromLatency(2) + p99FromLatency(1) + 0.2 * p99FromLatency(4);
     expect(latency).toBeCloseTo(expected);
   });
 
