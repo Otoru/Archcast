@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { runSimulation } from "@/engine";
-import { computeSystemAvailability } from "@/engine/availability";
+import { checkAvailability, computeSystemAvailability } from "@/engine/availability";
 import {
   defaultParams,
   makeGraph,
@@ -38,6 +38,58 @@ describe("availability", () => {
     expect(computeSystemAvailability(graph)).toBeCloseTo(expected, 5);
   });
 
+  it("treats distinct-kind fan-out as series (all dependencies required)", () => {
+    // app → db (sql-db) + feature-flag: kinds diferentes, ambos necessários.
+    // A disponibilidade do feature-flag NÃO pode ser mascarada pela do db.
+    const ff = 0.99;
+    const graph = makeGraph(
+      [
+        sourceNode("src"),
+        serverNode("app", { capacity: 5000, latBase: 5, availability: 1 }),
+        presetNode("db", "sql-db", { availability: 0.9999, instances: 1 }),
+        presetNode("flag", "feature-flags", { availability: ff, instances: 1 }),
+      ],
+      [
+        { id: "e1", from: "src", to: "app", kind: "read" },
+        { id: "e2", from: "app", to: "db", kind: "read" },
+        { id: "e3", from: "app", to: "flag", kind: "read" },
+      ],
+    );
+
+    const expected =
+      effectiveAvailability({ availability: 0.9999, instances: 1 }) *
+      effectiveAvailability({ availability: ff, instances: 1 });
+
+    // Série: ~0.9999 * 0.99 ≈ 0.9899, claramente puxado pelo feature-flag —
+    // não os ~0.9999 que o paralelo (combineParallel) daria.
+    expect(computeSystemAvailability(graph)).toBeCloseTo(expected, 5);
+    expect(computeSystemAvailability(graph)).toBeLessThan(0.991);
+  });
+
+  it("lowering a single-instance dependency moves system availability", () => {
+    const mk = (flagAvail: number) =>
+      makeGraph(
+        [
+          sourceNode("src"),
+          serverNode("app", { capacity: 5000, latBase: 5, availability: 1 }),
+          presetNode("db", "sql-db", { availability: 0.9999, instances: 1 }),
+          presetNode("flag", "feature-flags", {
+            availability: flagAvail,
+            instances: 1,
+          }),
+        ],
+        [
+          { id: "e1", from: "src", to: "app", kind: "read" },
+          { id: "e2", from: "app", to: "db", kind: "read" },
+          { id: "e3", from: "app", to: "flag", kind: "read" },
+        ],
+      );
+
+    expect(computeSystemAvailability(mk(0.999))).toBeGreaterThan(
+      computeSystemAvailability(mk(0.99)),
+    );
+  });
+
   it("multiplies availability along series path", () => {
     const graph = makeGraph(
       [
@@ -56,6 +108,14 @@ describe("availability", () => {
       effectiveAvailability({ availability: 0.999, instances: 1 });
 
     expect(computeSystemAvailability(graph)).toBeCloseTo(expected, 5);
+  });
+
+  it("formats availability violation with two decimal places", () => {
+    const result = checkAvailability({ nodes: [], edges: [] }, 0.9988, 0.999);
+    expect(result.passed).toBe(false);
+    expect(result.detail).toBe(
+      "System availability 99.88% is below SLO 99.90%",
+    );
   });
 
   it("generates availability violation when below SLO", () => {

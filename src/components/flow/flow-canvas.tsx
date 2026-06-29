@@ -21,8 +21,11 @@ import {
   BlockNode,
   type BlockNode as BlockNodeType,
   InvalidNodesContext,
+  RunStateContext,
 } from "@/components/flow/block-node";
 import { BLOCK_DND_MIME } from "@/components/flow/dnd";
+import { FlowEdge } from "@/components/flow/flow-edge";
+import { deriveRunState } from "@/components/flow/flow-editor-helpers";
 import { useFlowEditor } from "@/components/flow/flow-editor-state";
 import {
   buildGraph,
@@ -31,6 +34,7 @@ import {
 } from "@/components/flow/validate-graph";
 
 const nodeTypes = { block: BlockNode };
+const edgeTypes = { wf: FlowEdge };
 // Origem do nó no centro: a `position` vira o centro do nó (não o top-left),
 // então o nó solta com o cursor no meio — igual ao ghost do drag.
 const NODE_ORIGIN: NodeOrigin = [0.5, 0.5];
@@ -42,7 +46,7 @@ const DEFAULT_VIEWPORT: Viewport = { x: 0, y: 0, zoom: 1 };
 function FlowInner() {
   const { resolvedTheme } = useTheme();
   const colorMode = resolvedTheme === "dark" ? "dark" : "light";
-  const { screenToFlowPosition, getViewport, getNode } = useReactFlow<
+  const { screenToFlowPosition, getViewport, getNode, fitView } = useReactFlow<
     BlockNodeType,
     Edge
   >();
@@ -59,6 +63,9 @@ function FlowInner() {
     onEdgesChange,
     setSelectedNodeId,
     notifyNodeClick,
+    verdict,
+    running,
+    fitViewSignal,
   } = useFlowEditor();
 
   // Publica o zoom atual do canvas no store da imagem de drag, para o ghost
@@ -73,10 +80,16 @@ function FlowInner() {
 
   // Cria a aresta ao soltar uma conexão entre handles. O canal fica
   // codificado nos `sourceHandle`/`targetHandle` (`out-read` → `in-read`);
-  // `addEdge` dedupe por par de handles.
+  // `addEdge` dedupe por par de handles. Travado durante o run (`nodesConnect
+  // able` já bloqueia o arraste; o guard é rede de segurança).
   const onConnect = useCallback(
-    (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
-    [setEdges],
+    (connection: Connection) => {
+      if (running) {
+        return;
+      }
+      setEdges((eds) => addEdge(connection, eds));
+    },
+    [running, setEdges],
   );
 
   // Recusa o drop de conexões inválidas já no arraste (canal incompatível,
@@ -97,6 +110,40 @@ function FlowInner() {
     [nodes, edges],
   );
 
+  // Estado de run (bottleneck, saturados, estado das edges) derivado do
+  // veredito — pura, sem mutar `data`, mesma filosofia do `invalidNodeIds`.
+  // Publicado via `RunStateContext` para os nós (destaque) e a edge custom
+  // (cor/animação). Recomputado a cada mudança de veredito (recálculo ao vivo
+  // do provider) ou de grafo.
+  const runState = useMemo(
+    () => deriveRunState(verdict, nodes, edges, running),
+    [verdict, nodes, edges, running],
+  );
+
+  // Ao entrar no run, limpa a seleção do RF (anel `selected`). Como
+  // `elementsSelectable={!running}`, o RF não troca mais a seleção durante o
+  // run, e clicar um nó (via `onNodeClick`) mudaria só o inspector — deixando
+  // o anel congelado no nó antigo, fora de sincronia. Limpar na entrada deixa
+  // o canvas sem anel durante o run (o inspector indica o nó ativo). `selected`
+  // não entra na `runSignature`, então não dispara recálculo.
+  useEffect(() => {
+    if (!running) return;
+    setNodes((current) =>
+      current.some((n) => n.selected)
+        ? current.map((n) => (n.selected ? { ...n, selected: false } : n))
+        : current,
+    );
+  }, [running, setNodes]);
+
+  // `fitViewSignal` sobe do `FlowEditorProvider` (toolbar/shell) — a toolbar
+  // está fora do `ReactFlowProvider`, então ela não pode chamar `fitView`
+  // diretamente; incrementa o sinal e o canvas (dentro do provider) enquadra.
+  // Pula o sinal inicial 0 pra não re-enquadrar no mount.
+  useEffect(() => {
+    if (fitViewSignal <= 0) return;
+    fitView({ duration: 200 });
+  }, [fitViewSignal, fitView]);
+
   const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
@@ -105,6 +152,9 @@ function FlowInner() {
   const onDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
       event.preventDefault();
+      if (running) {
+        return;
+      }
       const kind =
         event.dataTransfer.getData(BLOCK_DND_MIME) ||
         event.dataTransfer.getData("text/plain");
@@ -122,7 +172,7 @@ function FlowInner() {
       };
       setNodes((current) => [...current, node]);
     },
-    [screenToFlowPosition, setNodes],
+    [running, screenToFlowPosition, setNodes],
   );
 
   // Ctrl/Cmd+A seleciona todos os nós. O RF não traz esse atalho nativo, então
@@ -158,36 +208,49 @@ function FlowInner() {
     // biome-ignore lint/a11y/noStaticElementInteractions: zona de drop do canvas (drag-and-drop, não é widget de teclado)
     <div className="h-full w-full" onDragOver={onDragOver} onDrop={onDrop}>
       <InvalidNodesContext.Provider value={invalidNodeIds}>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onSelectionChange={({ nodes: selected }) =>
-            setSelectedNodeId(selected.length === 1 ? selected[0].id : null)
-          }
-          onNodeClick={(_event, node) => {
-            // Dispara a cada clique (mesmo no nó já selecionado) para a shell
-            // reabrir/rolar o inspector na seção de atributos — `onSelection
-            // Change` não basta porque reclicar o mesmo nó não muda a seleção.
-            setSelectedNodeId(node.id);
-            notifyNodeClick();
-          }}
-          isValidConnection={isValidConnection}
-          deleteKeyCode={["Delete", "Backspace"]}
-          nodeTypes={nodeTypes}
-          nodeOrigin={NODE_ORIGIN}
-          colorMode={colorMode}
-          onViewportChange={onViewportChange}
-          defaultViewport={DEFAULT_VIEWPORT}
-          proOptions={{ hideAttribution: true }}
-          className="h-full w-full bg-background"
-        >
-          <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-          <Controls />
-          <MiniMap pannable zoomable />
-        </ReactFlow>
+        <RunStateContext.Provider value={runState}>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onSelectionChange={({ nodes: selected }) =>
+              setSelectedNodeId(selected.length === 1 ? selected[0].id : null)
+            }
+            onNodeClick={(_event, node) => {
+              // Dispara a cada clique (mesmo no nó já selecionado) para a shell
+              // reabrir/rolar o inspector na seção de atributos — `onSelection
+              // Change` não basta porque reclicar o mesmo nó não muda a seleção.
+              setSelectedNodeId(node.id);
+              notifyNodeClick();
+            }}
+            isValidConnection={isValidConnection}
+            // Modo run trava a estrutura: sem arrastar nodes, sem iniciar
+            // conexões, sem apagar por teclado, sem selecionar. O cadeado do
+            // `<Controls>` reflete `isInteractive = nodesDraggable ||
+            // nodesConnectable || elementsSelectable` — travar os três fecha o
+            // cadeado (LockIcon). A seleção para o inspector continua via
+            // `onNodeClick` (não depende de `elementsSelectable`).
+            nodesDraggable={!running}
+            nodesConnectable={!running}
+            elementsSelectable={!running}
+            deleteKeyCode={running ? null : ["Delete", "Backspace"]}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            defaultEdgeOptions={{ type: "wf" }}
+            nodeOrigin={NODE_ORIGIN}
+            colorMode={colorMode}
+            onViewportChange={onViewportChange}
+            defaultViewport={DEFAULT_VIEWPORT}
+            proOptions={{ hideAttribution: true }}
+            className="h-full w-full bg-background"
+          >
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+            <Controls />
+            <MiniMap pannable zoomable />
+          </ReactFlow>
+        </RunStateContext.Provider>
       </InvalidNodesContext.Provider>
     </div>
   );
@@ -196,8 +259,8 @@ function FlowInner() {
 /**
  * Canvas React Flow em tela cheia com drag-and-drop da sidebar: arrasta um
  * bloco do catálogo e solta no canvas para criar um nó daquele kind na
- * posição exata. Estado apenas em memória — some no refresh (sem
- * persistência nesta iteração).
+ * posição exata. O estado vive no `FlowEditorProvider` e persiste via
+ * localStorage / export-import JSON (gerenciado pela shell).
  */
 export function FlowCanvas() {
   return (

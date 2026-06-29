@@ -43,7 +43,14 @@ function downstreamAvailability(
   }
 
   const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
-  const branchAvailabilities: number[] = [];
+
+  // Agrupa os destinos por `kind`: destinos do MESMO kind são réplicas
+  // redundantes (qualquer uma serve → combina em paralelo); destinos de kinds
+  // DIFERENTES são dependências distintas, todas necessárias para a requisição
+  // (→ multiplica em série). Assim um load balancer → 3 app-servers continua
+  // sendo redundância, mas um app-server → db + feature-flag passa a exigir os
+  // dois — a disponibilidade do feature-flag deixa de ser mascarada pela do db.
+  const branchesByKind = new Map<string, number[]>();
 
   for (const edge of outgoing) {
     const destNode = nodeById.get(edge.to);
@@ -58,10 +65,20 @@ function downstreamAvailability(
       graph,
       new Set(visited),
     );
-    branchAvailabilities.push(destAvail * further);
+    const branch = destAvail * further;
+    const group = branchesByKind.get(destNode.kind);
+    if (group) {
+      group.push(branch);
+    } else {
+      branchesByKind.set(destNode.kind, [branch]);
+    }
   }
 
-  return combineParallel(branchAvailabilities);
+  let available = 1;
+  for (const branches of branchesByKind.values()) {
+    available *= combineParallel(branches);
+  }
+  return available;
 }
 
 export function computeSystemAvailability(graph: Graph): number {
@@ -99,7 +116,7 @@ export function checkAvailability(
   if (systemAvailability < availabilitySlo) {
     return {
       passed: false,
-      detail: `System availability ${(systemAvailability * 100).toFixed(3)}% is below SLO ${(availabilitySlo * 100).toFixed(3)}%`,
+      detail: `System availability ${(systemAvailability * 100).toFixed(2)}% is below SLO ${(availabilitySlo * 100).toFixed(2)}%`,
     };
   }
   return { passed: true };

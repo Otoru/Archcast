@@ -36,15 +36,18 @@ const passedVerdict: Verdict = {
 function Harness({
   selectedNodeId,
   verdict,
+  running = false,
 }: Readonly<{
   selectedNodeId: string | null;
   verdict: Verdict | null;
+  running?: boolean;
 }>) {
   return (
     <FlowEditorProvider
       initialNodes={NODES}
       initialSelectedNodeId={selectedNodeId}
       initialVerdict={verdict}
+      initialRunning={running}
     >
       <div className="flex h-dvh w-full">
         <main className="flex-1 bg-wf-bg" />
@@ -72,4 +75,11 @@ export const EmptySelection: Story = {
 
 export const NoVerdict: Story = {
   render: () => <Harness selectedNodeId="db" verdict={null} />,
+};
+
+/** Modo run ativo: Challenge params travados (só attrs de nodes editáveis). */
+export const Running: Story = {
+  render: () => (
+    <Harness selectedNodeId="app" verdict={passedVerdict} running />
+  ),
 };

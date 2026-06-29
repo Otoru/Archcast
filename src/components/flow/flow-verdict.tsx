@@ -140,8 +140,8 @@ export function FlowVerdict({
         />
         <MetricRow
           label="Availability"
-          value={formatPercent(summary.availability.value)}
-          threshold={formatPercent(params.availabilitySlo)}
+          value={formatPercent(summary.availability.value, 2)}
+          threshold={formatPercent(params.availabilitySlo, 2)}
           status={summary.availability.status}
         />
       </div>

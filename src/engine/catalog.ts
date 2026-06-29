@@ -157,6 +157,19 @@ export const BLOCK_CATALOG: BlockPreset[] = [
     edges: { in: ["read", "write"], out: ["read", "write"] },
   },
   {
+    kind: "cache",
+    label: "Cache",
+    primitive: "absorber-aside",
+    layer: "data",
+    defaults: {
+      hitRatio: 0.85,
+      capacity: 1e5,
+      latBase: 0.5,
+      availability: 0.999,
+    },
+    edges: { in: ["read"], out: [] },
+  },
+  {
     kind: "sql-db",
     label: "SQL Database",
     primitive: "server",

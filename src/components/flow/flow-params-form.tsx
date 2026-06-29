@@ -19,6 +19,9 @@ function RatioField({
   value,
   step,
   decimals,
+  min = 0,
+  max = 1,
+  disabled = false,
   onChange,
 }: Readonly<{
   id: string;
@@ -26,6 +29,9 @@ function RatioField({
   value: number;
   step: number;
   decimals: number;
+  min?: number;
+  max?: number;
+  disabled?: boolean;
   onChange: (next: number) => void;
 }>) {
   return (
@@ -35,9 +41,10 @@ function RatioField({
         <Slider.Root
           className="flex-1"
           value={value}
-          min={0}
-          max={1}
+          min={min}
+          max={max}
           step={step}
+          disabled={disabled}
           aria-labelledby={id}
           onValueChange={onChange}
         />
@@ -63,12 +70,23 @@ const TRAFFIC_PATTERN_ITEMS: ComboboxOption[] = [
 export function FlowParamsForm({
   params,
   onChange,
+  disabled = false,
 }: Readonly<{
   params: ChallengeParams;
   onChange: (next: ChallengeParams) => void;
+  /**
+   * Desabilita todos os campos — usado pelo `FlowParamsFormConnected` para
+   * travar os Challenge params durante o modo run (só attrs de nodes são
+   * editáveis). Base UI (Slider/Combobox) não honra `disabled` herdado de
+   * fieldset, por isso repassamos explicitamente a cada control.
+   */
+  disabled?: boolean;
 }>) {
   const requiredNumber =
     (key: keyof ChallengeParams) => (event: ChangeEvent<HTMLInputElement>) => {
+      if (disabled) {
+        return;
+      }
       const raw = event.target.value;
       const value = raw === "" ? 0 : Number(raw);
       if (Number.isFinite(value)) {
@@ -89,6 +107,7 @@ export function FlowParamsForm({
             id="param-rps"
             type="number"
             min={0}
+            disabled={disabled}
             value={String(params.rps)}
             onChange={requiredNumber("rps")}
           />
@@ -100,6 +119,7 @@ export function FlowParamsForm({
             className="w-full"
             items={TRAFFIC_PATTERN_ITEMS}
             value={patternOption}
+            disabled={disabled}
             onValueChange={(option) => {
               if (option) {
                 onChange({
@@ -126,6 +146,7 @@ export function FlowParamsForm({
           value={params.readWriteRatio}
           step={0.05}
           decimals={0}
+          disabled={disabled}
           onChange={(next) => onChange({ ...params, readWriteRatio: next })}
         />
 
@@ -135,6 +156,7 @@ export function FlowParamsForm({
             id="param-lat-slo"
             type="number"
             min={0}
+            disabled={disabled}
             value={String(params.latencySlo)}
             onChange={requiredNumber("latencySlo")}
           />
@@ -144,8 +166,11 @@ export function FlowParamsForm({
           id="param-av-slo"
           label="Availability SLO"
           value={params.availabilitySlo}
+          min={0.99}
+          max={1}
           step={0.0001}
-          decimals={0}
+          decimals={2}
+          disabled={disabled}
           onChange={(next) => onChange({ ...params, availabilitySlo: next })}
         />
       </div>
@@ -153,8 +178,10 @@ export function FlowParamsForm({
   );
 }
 
-/** Conectado ao `FlowEditorProvider`: lê/escreve `params`. */
+/** Conectado ao `FlowEditorProvider`: lê/escreve `params`. Fica desabilitado durante o modo run. */
 export function FlowParamsFormConnected() {
-  const { params, setParams } = useFlowEditor();
-  return <FlowParamsForm params={params} onChange={setParams} />;
+  const { params, setParams, running } = useFlowEditor();
+  return (
+    <FlowParamsForm params={params} onChange={setParams} disabled={running} />
+  );
 }

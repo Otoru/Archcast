@@ -1,5 +1,10 @@
+import type { Edge as RFEdge } from "@xyflow/react";
 import type { VariantProps } from "class-variance-authority";
-import type { BlockNode as BlockNodeType } from "@/components/flow/block-node";
+import type {
+  BlockNode as BlockNodeType,
+  RunEdgeState,
+  RunState,
+} from "@/components/flow/block-node";
 import type { badgeVariants } from "@/components/ui/badge";
 import {
   type BlockPreset,
@@ -124,13 +129,25 @@ export function violationBadgeVariant(violation: Violation): BadgeVariant {
   }
 }
 
+/** Ids dos nós presentes no canvas RF — usado para filtrar entradas órfãs do veredito congelado. */
+function canvasNodeIds(nodes: BlockNodeType[]): Set<string> {
+  return new Set(nodes.map((n) => n.id));
+}
+
 /** Constrói as linhas da tabela de nós: junta `verdict.nodes` com os nós do RF para rótulo, ordenadas por ρ desc. */
 export function nodeRows(verdict: Verdict, nodes: BlockNodeType[]): NodeRow[] {
+  const onCanvas = canvasNodeIds(nodes);
   const labelById = new Map<string, string>();
   const instancesById = new Map<string, number>();
+  // Nós da camada client não entram na tabela de nós do veredito — o usuário
+  // raciocina sobre o sistema (edge/compute/data/...), não sobre o cliente.
+  const clientIds = new Set<string>();
   for (const node of nodes) {
     const preset = getPreset(node.data.kind);
     labelById.set(node.id, preset?.label ?? node.data.kind);
+    if (preset?.layer === "client") {
+      clientIds.add(node.id);
+    }
     // Instâncias configuradas pelo usuário (stepper) → default do preset →
     // fallback global. Usado quando o engine não devolve `provisioned`
     // (autoscaling só roda no handler `server`); os demais nós refletem o
@@ -143,6 +160,7 @@ export function nodeRows(verdict: Verdict, nodes: BlockNodeType[]): NodeRow[] {
     );
   }
   return Object.entries(verdict.nodes)
+    .filter(([id]) => onCanvas.has(id) && !clientIds.has(id))
     .map(([id, result]) => ({
       id,
       label: labelById.get(id) ?? id,
@@ -178,11 +196,15 @@ export function summarizeVerdict(
       verdict.systemAvailability >= params.availabilitySlo ? "ok" : "danger",
   };
 
+  const onCanvas = canvasNodeIds(nodes);
+
   return {
     passed: verdict.passed,
     latency,
     availability,
-    violations: verdict.violations,
+    violations: verdict.violations.filter(
+      (v) => !v.nodeId || onCanvas.has(v.nodeId),
+    ),
     nodeRows: nodeRows(verdict, nodes),
   };
 }
@@ -190,4 +212,104 @@ export function summarizeVerdict(
 /** Formata uma razão 0–1 como percentual com `digits` casas. */
 export function formatPercent(value: number, digits = 3): string {
   return `${(value * 100).toFixed(digits)}%`;
+}
+
+/**
+ * Magnitude (|r|+|w|+|a|) de um `Flow` do engine — o quanto de fluxo aquela
+ * edge carrega, usado para normalizar a cor/espessura visual no modo run.
+ */
+function flowMagnitude(flow: { read: number; write: number; async: number }) {
+  return flow.read + flow.write + flow.async;
+}
+
+/**
+ * Deriva o `RunState` visual a partir do `Verdict` + grafo RF: qual é o
+ * bottleneck (max ρ, excluindo a camada client — o usuário raciocina sobre o
+ * sistema, não sobre o cliente), quais nós estão saturados, e o estado de
+ * cada edge (magnitude normalizada pelo pico, e se a origem está saturada →
+ * edge "quente" em wf-destructive). Puríssima, sem React — testável isolada.
+ *
+ * `running` só sinaliza lock/animação; `hasVerdict` (running OU congelado
+ * pós-stop) gatinga os destaques. Sem veredito → estado "vazio" (nada
+ * destacado), mantendo `running` para o lock caso seja chamado assim.
+ */
+export function deriveRunState(
+  verdict: Verdict | null,
+  nodes: BlockNodeType[],
+  edges: RFEdge[],
+  running: boolean,
+): RunState {
+  if (!verdict) {
+    return {
+      running,
+      hasVerdict: false,
+      bottleneckId: null,
+      saturatedNodeIds: new Set<string>(),
+      edgeStateById: new Map<string, RunEdgeState>(),
+      maxFlow: 0,
+    };
+  }
+
+  // client layer não entra no raciocínio de sistema (mesmo critério do
+  // `nodeRows`) — não é candidata a bottleneck nem a destaque de saturado.
+  const onCanvas = canvasNodeIds(nodes);
+  const clientIds = new Set<string>();
+  for (const node of nodes) {
+    if (getPreset(node.data.kind)?.layer === "client") {
+      clientIds.add(node.id);
+    }
+  }
+
+  const saturatedNodeIds = new Set<string>();
+  let bottleneckId: string | null = null;
+  let maxRho = Number.NEGATIVE_INFINITY;
+  for (const [id, result] of Object.entries(verdict.nodes)) {
+    if (!onCanvas.has(id) || clientIds.has(id)) {
+      continue;
+    }
+    if (result.saturated) {
+      saturatedNodeIds.add(id);
+    }
+    if (result.rho > maxRho) {
+      maxRho = result.rho;
+      bottleneckId = id;
+    }
+  }
+  // Se nenhum nó não-cliente tem resultado, bottleneckId fica null (bem).
+  if (maxRho === Number.NEGATIVE_INFINITY) {
+    bottleneckId = null;
+  }
+
+  let maxFlow = 0;
+  for (const flow of Object.values(verdict.edgeFlows)) {
+    const mag = flowMagnitude(flow);
+    if (mag > maxFlow) {
+      maxFlow = mag;
+    }
+  }
+
+  const edgeStateById = new Map<string, RunEdgeState>();
+  for (const edge of edges) {
+    const flow = verdict.edgeFlows[edge.id];
+    if (!flow) {
+      continue;
+    }
+    const mag = flowMagnitude(flow);
+    edgeStateById.set(edge.id, {
+      flow: mag,
+      magnitude: maxFlow > 0 ? mag / maxFlow : 0,
+      // edge "quente": o nó de origem está saturado (o gargalo está esgotando
+      // esta saída).
+      saturated: saturatedNodeIds.has(edge.source),
+    });
+  }
+
+  return {
+    running,
+    hasVerdict: true,
+    bottleneckId,
+    saturatedNodeIds,
+    edgeStateById,
+    maxFlow,
+  };
 }

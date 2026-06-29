@@ -5,6 +5,7 @@ import {
   cacheNode,
   defaultParams,
   makeGraph,
+  presetNode,
   serverNode,
   sourceNode,
 } from "@/engine/test-helpers";
@@ -380,5 +381,38 @@ describe("runSimulation", () => {
     expect(instances.nodes.db?.latency).toBeCloseTo(
       split.nodes.db1?.latency ?? 0,
     );
+  });
+
+  it("16: production cache preset absorbs 85% of reads (cache-aside via catalog)", () => {
+    // Usa o preset de produção `cache` (absorber-aside, hitRatio default 0.85)
+    // — sem registrar nenhum preset de teste. Valida D10: um novo bloco no
+    // catálogo funciona sem código de handler/UI (NodeAttrsForm deriva os
+    // campos de `preset.defaults`, BlockNode deriva as portas de `preset.edges`).
+    const graph = makeGraph(
+      [
+        sourceNode("src"),
+        serverNode("app", { capacity: 10000, latBase: 1 }),
+        presetNode("cache", "cache", {}),
+        serverNode("db", { capacity: 200, latBase: 3 }),
+      ],
+      [
+        { id: "e1", from: "src", to: "app", kind: "read" },
+        { id: "e2", from: "app", to: "cache", kind: "read" },
+        { id: "e3", from: "app", to: "db", kind: "read" },
+      ],
+    );
+
+    const verdict = runSimulation(
+      graph,
+      defaultParams({ rps: 1000, readWriteRatio: 1 }),
+    );
+
+    // Cache absorve R (todas as leituras passam por ele); só os 15% de miss
+    // chegam ao DB (hitRatio 0.85 → 1−0.85 = 0.15).
+    expect(verdict.edgeFlows.e2?.read).toBeCloseTo(1000);
+    expect(verdict.edgeFlows.e3?.read).toBeCloseTo(150);
+    expect(
+      graph.edges.some((edge) => edge.from === "cache" && edge.to === "db"),
+    ).toBe(false);
   });
 });

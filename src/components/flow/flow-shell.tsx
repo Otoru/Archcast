@@ -1,21 +1,32 @@
 "use client";
 
-import { PlayIcon } from "lucide-react";
 import dynamic from "next/dynamic";
-import { type DragEvent, useCallback, useEffect, useState } from "react";
+import {
+  type DragEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { AppSidebar } from "@/components/flow/app-sidebar";
+import {
+  applyClipboardEntry,
+  copySelection,
+  duplicateSelection,
+  pasteSelection,
+} from "@/components/flow/clipboard";
 import { BLOCK_DND_MIME } from "@/components/flow/dnd";
 import {
   FlowEditorProvider,
   useFlowEditor,
 } from "@/components/flow/flow-editor-state";
+import { FlowInspector } from "@/components/flow/flow-inspector";
+import { FlowToolbar } from "@/components/flow/flow-toolbar";
 import {
-  FlowInspector,
-  FlowInspectorToggle,
-} from "@/components/flow/flow-inspector";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { Button } from "@/components/ui/button";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+  readStoredGraph,
+  writeStoredGraph,
+} from "@/components/flow/graph-persistence";
+import { SidebarProvider } from "@/components/ui/sidebar";
 
 // Canvas mede o viewport; carrega só no cliente (Next 16 exige ssr:false
 // dentro de um Client Component — esta shell é client).
@@ -24,36 +35,202 @@ const FlowCanvas = dynamic(
   { ssr: false },
 );
 
+const AUTOSAVE_DEBOUNCE_MS = 400;
+
 /**
- * Layout interno (dentro do `FlowEditorProvider`): canvas + sidebar esquerda
- * (paleta) + painel direito (inspector) + botão Run no canto superior direito.
- * Consome `useFlowEditor` para disparar a simulação.
+ * Layout interno (dentro do `FlowEditorProvider`): header com toolbar + canvas
+ * (sidebar esquerda de paleta + painel direito inspector são siblings do
+ * `<main>` dentro do `SidebarProvider`). Consome `useFlowEditor` para disparar a
+ * simulação (Run/Stop), orquestrar o inspector e persistir o grafo.
  */
 function ShellLayout() {
-  const { run, isRunning, selectedNodeId, nodeClickNonce } = useFlowEditor();
+  const {
+    running,
+    startRun,
+    stopRun,
+    selectedNodeId,
+    nodeClickNonce,
+    history,
+    applyGraph,
+    requestFitView,
+    nodes,
+    edges,
+    params,
+    setNodes,
+    setEdges,
+  } = useFlowEditor();
+
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [inspectorValue, setInspectorValue] = useState<string[]>(["node"]);
+  const [helpOpen, setHelpOpen] = useState(false);
+  // Contador incrementado a cada Run: alimenta `scrollToVerdictSignal` do
+  // inspector, que rola a seção Verdict para dentro da vista ao rodar.
+  const [runStartNonce, setRunStartNonce] = useState(0);
+  // `running` e `selectedNodeId` lidos via ref dentro do efeito de clique-em-nó:
+  // durante o run o inspector fica travado no Verdict, então clicar num nó (que
+  // ainda seleciona no canvas) NÃO reabre a seção Node. Refs em vez de deps pra o
+  // efeito só rodar no clique (nonce), não quando `running`/`selectedNodeId` mudem.
+  const runningRef = useRef(running);
+  runningRef.current = running;
+  const selectedNodeIdRef = useRef(selectedNodeId);
+  selectedNodeIdRef.current = selectedNodeId;
 
-  // Run dispara a simulação E abre o inspector já na seção Verdict — o botão
-  // Run mora na top-bar (fora do painel), então puxamos o painel pra mostrar o
-  // resultado sem o usuário precisar abrir/rolar manualmente.
+  // Run inicia o modo run (lock + efeito nas edges + recálculo ao vivo) E
+  // abre o inspector já na seção Verdict — a toolbar mora no header (fora do
+  // painel), então puxamos o painel pra mostrar o resultado sem o usuário
+  // precisar abrir/rolar manualmente. O `runStartNonce` dispara a rolagem até o
+  // Verdict (caso o painel estivesse rolado lá embaixo).
   const handleRun = useCallback(() => {
     setInspectorOpen(true);
     setInspectorValue(["verdict"]);
-    run();
-  }, [run]);
+    setRunStartNonce((n) => n + 1);
+    startRun();
+  }, [startRun]);
+
+  // Durante o run o accordion fica travado no Verdict: a shell ignora qualquer
+  // troca de seção vinda do `onValueChange` (valor controlado não muda). Em
+  // idle repassa normalmente.
+  const handleInspectorValueChange = useCallback(
+    (next: string[]) => {
+      if (running) return;
+      setInspectorValue(next);
+    },
+    [running],
+  );
 
   // Clicar num nó no canvas abre o inspector já na seção de atributos (Node).
   // Observa `nodeClickNonce` (não só `selectedNodeId`) para reagir a CADA
   // clique — reclicar o nó já selecionado não muda o id, mas deve reabrir a
-  // seção Node mesmo assim (ex.: depois de um Run que mudou para Verdict).
-  // biome-ignore lint/correctness/useExhaustiveDependencies: o nonce é o gatilho; selectedNodeId só filtra cliques válidos
+  // seção Node mesmo assim (ex.: depois de um Run que mudou para Verdict). No
+  // run o efeito é no-op (ficamos no Verdict travado). `nodeClickNonce === 0`
+  // é o mount (sem clique) — aí não abrimos nada.
   useEffect(() => {
-    if (selectedNodeId) {
+    if (nodeClickNonce === 0) return;
+    if (runningRef.current) return;
+    if (selectedNodeIdRef.current) {
       setInspectorOpen(true);
       setInspectorValue(["node"]);
     }
-  }, [nodeClickNonce, selectedNodeId]);
+  }, [nodeClickNonce]);
+
+  // Restore de mount — recupera o último grafo salvo do localStorage (auto-save)
+  // e faz dele o **baseline** do histórico (`replaceCurrent`), então undo não
+  // reverte pra tela vazia. `applyGraph` dispara o efeito observador do
+  // histórico, mas o commit echo é descartado (snapshot == present após o
+  // replaceCurrent). Todas as deps são callbacks estáveis (useCallback), então
+  // o efeito roda só no mount.
+  const { replaceCurrent } = history;
+  useEffect(() => {
+    const doc = readStoredGraph();
+    if (!doc) return;
+    applyGraph(doc);
+    replaceCurrent({
+      nodes: doc.nodes,
+      edges: doc.edges,
+      params: doc.params,
+    });
+    requestFitView();
+  }, [applyGraph, replaceCurrent, requestFitView]);
+
+  // Auto-save debounced: 400ms após qualquer mudança (nó/aresta/param/posição),
+  // grava no localStorage. Não salva durante o run (evita churn do recálculo).
+  useEffect(() => {
+    if (running) return;
+    const timer = setTimeout(() => {
+      writeStoredGraph(nodes, edges, params);
+    }, AUTOSAVE_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [nodes, edges, params, running]);
+
+  // Atalhos de teclado (undo/redo/copy/paste/duplicate/run-toggle/help). Lidos
+  // via ref pra o listener ser registrado uma vez só e sempre ver estado fresco.
+  // Ctrl+A e Delete continuam no `FlowCanvas` (teclas diferentes, sem conflito).
+  const shortcutsRef = useRef({
+    running,
+    nodes,
+    edges,
+    history,
+    setNodes,
+    setEdges,
+    handleRun,
+    stopRun,
+    setHelpOpen,
+  });
+  shortcutsRef.current = {
+    running,
+    nodes,
+    edges,
+    history,
+    setNodes,
+    setEdges,
+    handleRun,
+    stopRun,
+    setHelpOpen,
+  };
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const s = shortcutsRef.current;
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) {
+        return;
+      }
+      const mod = event.ctrlKey || event.metaKey;
+      if (!mod) {
+        if (event.key === "?") {
+          event.preventDefault();
+          s.setHelpOpen(true);
+        }
+        return;
+      }
+      const key = event.key.toLowerCase();
+      if (key === "enter") {
+        event.preventDefault();
+        if (s.running) {
+          s.stopRun();
+        } else {
+          s.handleRun();
+        }
+        return;
+      }
+      if (key === "z") {
+        event.preventDefault();
+        if (event.shiftKey) {
+          s.history.redo();
+        } else {
+          s.history.undo();
+        }
+        return;
+      }
+      if (key === "c") {
+        event.preventDefault();
+        copySelection(s.nodes, s.edges);
+        return;
+      }
+      if (key === "v") {
+        event.preventDefault();
+        if (!s.running) {
+          const entry = pasteSelection();
+          if (entry) {
+            applyClipboardEntry(entry, s.setNodes, s.setEdges);
+          }
+        }
+        return;
+      }
+      if (key === "d") {
+        event.preventDefault();
+        if (!s.running) {
+          const entry = duplicateSelection(s.nodes, s.edges);
+          if (entry) {
+            applyClipboardEntry(entry, s.setNodes, s.setEdges);
+          }
+        }
+        return;
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   // Aceita o drop-effect "move" em toda a shell durante o arraste de um bloco
   // — sem isso, o cursor vira 🚫 (no-drop) ao cruzar a sidebar/header, já que
@@ -71,35 +248,25 @@ function ShellLayout() {
     <div className="h-dvh w-full overflow-hidden" onDragOver={onDragOver}>
       <SidebarProvider className="h-full w-full" style={{ minHeight: 0 }}>
         <AppSidebar />
-        <main className="relative h-full flex-1 overflow-hidden">
-          <SidebarTrigger
-            variant="outline"
-            size="icon"
-            className="absolute left-4 top-4 z-20 rounded-full bg-background shadow-md"
+        <main className="flex h-full flex-1 flex-col overflow-hidden">
+          <FlowToolbar
+            inspectorOpen={inspectorOpen}
+            onToggleInspector={() => setInspectorOpen((v) => !v)}
+            onRun={handleRun}
+            helpOpen={helpOpen}
+            onHelpChange={setHelpOpen}
           />
-          <div className="absolute right-4 top-4 z-20 flex items-center gap-2">
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleRun}
-              loading={isRunning}
-            >
-              <PlayIcon />
-              Run
-            </Button>
-            <ThemeToggle />
-            <FlowInspectorToggle
-              open={inspectorOpen}
-              onToggle={() => setInspectorOpen((v) => !v)}
-            />
+          <div className="relative flex-1 overflow-hidden">
+            <FlowCanvas />
           </div>
-          <FlowCanvas />
         </main>
         <FlowInspector
           open={inspectorOpen}
           value={inspectorValue}
-          onValueChange={setInspectorValue}
+          onValueChange={handleInspectorValueChange}
           scrollTopSignal={nodeClickNonce}
+          locked={running}
+          scrollToVerdictSignal={runStartNonce}
         />
       </SidebarProvider>
     </div>
@@ -107,10 +274,13 @@ function ShellLayout() {
 }
 
 /**
- * Shell de layout da home: canvas React Flow em tela cheia + sidebar shadcn
+ * Shell de layout da home: header com toolbar (File/Presets/Edit/Help +
+ * Run/Stop + toggles) + canvas React Flow em tela cheia + sidebar shadcn
  * esquerda (paleta, colapsável offcanvas) + painel direito (inspector de
- * attrs/params/veredito). O `FlowEditorProvider` envolve tudo para que
- * paleta, canvas, inspector e botão Run compartilhem o mesmo estado.
+ * attrs/params/veredito). O `FlowEditorProvider` envolve tudo para que paleta,
+ * canvas, inspector e toolbar compartilhem o mesmo estado. O grafo persiste
+ * automaticamente no localStorage ao refresh; export/import de JSON trocam
+ * grafos entre sessões.
  */
 export function FlowShell() {
   return (

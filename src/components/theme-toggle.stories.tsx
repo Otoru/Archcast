@@ -13,7 +13,9 @@ type Story = StoryObj<typeof meta>;
 
 export const ToggleInteraction: Story = {
   play: async ({ canvas, userEvent }) => {
-    const toggle = canvas.getByRole("button", { name: /alternar tema/i });
+    const toggle = canvas.getByRole("button", {
+      name: /switch to (light|dark) theme/i,
+    });
 
     await waitFor(() => {
       expect(toggle).toBeEnabled();

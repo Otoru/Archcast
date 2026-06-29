@@ -1,10 +1,11 @@
+import type { Edge as RFEdge } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
-
 import type { BlockNode as BlockNodeType } from "@/components/flow/block-node";
 import {
   applyAttrChange,
   attrsFormSpec,
   defaultChallengeParams,
+  deriveRunState,
   formatPercent,
   nodeRows,
   summarizeVerdict,
@@ -158,9 +159,16 @@ describe("nodeRows", () => {
     expect(rows[0]?.dropped).toBe(12);
   });
 
-  it("usa o id como rótulo quando o nó não está no canvas", () => {
+  it("omite nós que não estão mais no canvas", () => {
     const rows = nodeRows(makeVerdict(), []);
-    expect(rows.map((r) => r.label)).toEqual(["db", "app"]);
+    expect(rows).toEqual([]);
+  });
+
+  it("omite nós deletados do veredito congelado", () => {
+    const nodes = [rfNode("app", "app-server")];
+    const rows = nodeRows(makeVerdict(), nodes);
+    expect(rows.map((r) => r.id)).toEqual(["app"]);
+    expect(rows[0]?.label).toBe("App Server");
   });
 });
 
@@ -206,11 +214,120 @@ describe("summarizeVerdict", () => {
     expect(summary.violations).toHaveLength(1);
     expect(summary.nodeRows).toHaveLength(2);
   });
+
+  it("omite violations de nós deletados do veredito congelado", () => {
+    const summary = summarizeVerdict(
+      makeVerdict({
+        passed: false,
+        violations: [
+          { type: "saturation", nodeId: "db", detail: "rho > 1" },
+          { type: "saturation", nodeId: "app", detail: "rho > 1" },
+        ],
+      }),
+      params,
+      [rfNode("app", "app-server")],
+    );
+    expect(summary.violations).toHaveLength(1);
+    expect(summary.violations[0]?.nodeId).toBe("app");
+    expect(summary.nodeRows).toHaveLength(1);
+  });
 });
 
 describe("formatadores", () => {
   it("formatPercent", () => {
     expect(formatPercent(0.9995)).toBe("99.950%");
     expect(formatPercent(0.5, 1)).toBe("50.0%");
+  });
+});
+
+describe("deriveRunState", () => {
+  function rfEdge(id: string, source: string, target: string): RFEdge {
+    return {
+      id,
+      source,
+      target,
+      sourceHandle: "out-read",
+      targetHandle: "in-read",
+    };
+  }
+
+  it("sem veredito → estado vazio (nada destacado), respeitando `running`", () => {
+    const state = deriveRunState(null, [], [], true);
+    expect(state.hasVerdict).toBe(false);
+    expect(state.bottleneckId).toBeNull();
+    expect(state.running).toBe(true);
+    expect(state.saturatedNodeIds.size).toBe(0);
+  });
+
+  it("bottleneck = node não-client com maior ρ", () => {
+    const nodes = [
+      rfNode("web", "web-client"),
+      rfNode("app", "app-server"),
+      rfNode("db", "sql-db"),
+    ];
+    const verdict: Verdict = {
+      passed: true,
+      endToEndLatency: 100,
+      systemAvailability: 0.999,
+      nodes: {
+        // cliente fica de fora do raciocínio mesmo com rho altíssimo
+        web: { rho: 5, latency: 1, saturated: true },
+        app: { rho: 0.8, latency: 20, saturated: false },
+        db: { rho: 0.95, latency: 5, saturated: true },
+      },
+      edgeFlows: {},
+      violations: [],
+    };
+    const state = deriveRunState(verdict, nodes, [], false);
+    expect(state.bottleneckId).toBe("db"); // 0.95 > 0.8, cliente ignorado
+    // só nós não-clientes saturados entram no conjunto
+    expect([...state.saturatedNodeIds].sort()).toEqual(["db"]);
+  });
+
+  it("recalcula bottleneck quando o nó de maior ρ foi deletado", () => {
+    const verdict: Verdict = {
+      passed: true,
+      endToEndLatency: 100,
+      systemAvailability: 0.999,
+      nodes: {
+        app: { rho: 0.8, latency: 20, saturated: false },
+        db: { rho: 0.95, latency: 5, saturated: true },
+      },
+      edgeFlows: {},
+      violations: [],
+    };
+    const nodes = [rfNode("app", "app-server")];
+    const state = deriveRunState(verdict, nodes, [], false);
+    expect(state.bottleneckId).toBe("app");
+    expect(state.saturatedNodeIds.size).toBe(0);
+  });
+
+  it("edge herdou saturação da origem e magnitude normalizada pelo pico", () => {
+    const nodes = [rfNode("app", "app-server"), rfNode("db", "sql-db")];
+    const verdict: Verdict = {
+      passed: true,
+      endToEndLatency: 100,
+      systemAvailability: 0.999,
+      nodes: {
+        app: { rho: 1.2, latency: Number.POSITIVE_INFINITY, saturated: true },
+        db: { rho: 0.4, latency: 5, saturated: false },
+      },
+      edgeFlows: {
+        e1: { read: 800, write: 0, async: 0 },
+        e2: { read: 200, write: 0, async: 0 },
+      },
+      violations: [],
+    };
+    const edges = [rfEdge("e1", "app", "db"), rfEdge("e2", "db", "app")];
+    const state = deriveRunState(verdict, nodes, edges, true);
+
+    expect(state.maxFlow).toBe(800);
+    const e1 = state.edgeStateById.get("e1");
+    const e2 = state.edgeStateById.get("e2");
+    expect(e1?.saturated).toBe(true); // origem app saturada
+    expect(e1?.magnitude).toBeCloseTo(1, 5); // 800/800
+    expect(e2?.saturated).toBe(false); // origem db não saturada
+    expect(e2?.magnitude).toBeCloseTo(0.25, 5); // 200/800
+    expect(state.running).toBe(true);
   });
 });

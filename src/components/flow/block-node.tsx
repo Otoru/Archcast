@@ -43,6 +43,47 @@ export const InvalidNodesContext = createContext<Set<string>>(
   new Set<string>(),
 );
 
+/**
+ * Estado visual de uma edge durante o run: magnitude normalizada (0–1) do
+ * fluxo que ela carrega (relativo ao pico do grafo), se o nó de origem está
+ * saturado (edge "quente" → wf-destructive) e o fluxo absoluto para escalar
+ * a espessura.
+ */
+export type RunEdgeState = {
+  magnitude: number;
+  saturated: boolean;
+  flow: number;
+};
+
+/**
+ * Estado de run publicado pelo `FlowCanvas` e consumido por cada `BlockNode` e
+ * pela edge custom (`FlowEdge`): se o modo run está ativo (lock + animação),
+ * se há veredito (running OU congelado pós-stop), o id do bottleneck (max ρ),
+ * o conjunto de nós saturados e o estado por edge. Derivação pura do veredito
+ * — sem mutar `data`, evitando loop de effect (mesmo padrão do
+ * `InvalidNodesContext`). Default seguro para o fantasma de drag e stories
+ * isolados (sem provider, nada destacado, nada animado).
+ */
+export type RunState = {
+  running: boolean;
+  hasVerdict: boolean;
+  bottleneckId: string | null;
+  saturatedNodeIds: Set<string>;
+  edgeStateById: Map<string, RunEdgeState>;
+  maxFlow: number;
+};
+
+export const defaultRunState: RunState = {
+  running: false,
+  hasVerdict: false,
+  bottleneckId: null,
+  saturatedNodeIds: new Set<string>(),
+  edgeStateById: new Map<string, RunEdgeState>(),
+  maxFlow: 0,
+};
+
+export const RunStateContext = createContext<RunState>(defaultRunState);
+
 export type LayerMeta = { label: string; icon: LucideIcon };
 
 export const LAYER_META: Record<Layer, LayerMeta> = {
@@ -76,6 +117,10 @@ export function BlockNodeShell({
   renderDot,
   selected = false,
   invalid = false,
+  bottleneck = false,
+  bottleneckPulse = false,
+  saturated = false,
+  saturatedPulse = false,
   onDelete,
 }: {
   preset: BlockPreset;
@@ -83,6 +128,14 @@ export function BlockNodeShell({
   renderDot: DotRenderer;
   selected?: boolean;
   invalid?: boolean;
+  /** Destaque do bottleneck (max ρ): borda foco. Permanece no veredito congelado. */
+  bottleneck?: boolean;
+  /** Pulso do bottleneck: só anima com o run ativo (para de piscar no Stop). */
+  bottleneckPulse?: boolean;
+  /** Node saturado (ρ ≥ 1) durante o run — borda vermelha. */
+  saturated?: boolean;
+  /** Pisca o node saturado em vermelho: só anima com o run ativo (para no Stop). */
+  saturatedPulse?: boolean;
   /** Quando presente, mostra um X no canto superior direito que apaga o nó. */
   onDelete?: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
@@ -95,9 +148,22 @@ export function BlockNodeShell({
     <div
       className={cn(
         "relative w-52 rounded-wf border-2 border-wf-border bg-wf-surface text-wf-ink",
-        selected && "border-wf-focus ring-wf-focus",
-        // `invalid` vence sobre `selected` quando ambos presentes: um nó em
-        // ciclo continua sinalizando o problema mesmo selecionado.
+        // Prioridade da borda (mutuamente exclusiva, para não depender da ordem
+        // do CSS gerado): invalid > saturated > bottleneck > selected.
+        // `invalid` só ocorre fora do run; `saturated`/`bottleneck` só no run.
+        selected &&
+          !invalid &&
+          !saturated &&
+          !bottleneck &&
+          "border-wf-focus ring-wf-focus",
+        // bottleneck (max ρ) ainda não saturado: borda foco, pulso suave.
+        bottleneck && !invalid && !saturated && "border-wf-focus",
+        bottleneckPulse && !saturated && "wf-bottleneck-pulse",
+        // saturated (ρ ≥ 1) vence sobre o bottleneck: vermelho e piscando,
+        // presente só durante o run (some ao apertar Stop).
+        saturated && !invalid && "border-wf-destructive ring-wf-destructive",
+        saturatedPulse && "wf-saturated-pulse",
+        // `invalid` (ciclo/aresta inválida) sinaliza mesmo selecionado.
         invalid && "border-wf-destructive ring-wf-destructive",
       )}
     >
@@ -165,6 +231,7 @@ export function BlockNodeShell({
  */
 export function BlockNode({ id, data, selected }: NodeProps<BlockNode>) {
   const invalid = useContext(InvalidNodesContext).has(id);
+  const runState = useContext(RunStateContext);
   const { deleteElements } = useReactFlow();
   const preset = getPreset(data.kind);
   if (!preset) {
@@ -181,6 +248,16 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNode>) {
   }
 
   const meta = LAYER_META[preset.layer];
+  // Destaques do modo run. O alarme de saturação (ρ ≥ 1) é vermelho e piscando,
+  // e existe SÓ enquanto o run está ativo — ao apertar Stop o vermelho some
+  // (não fica congelado, ao contrário do bottleneck). `saturated` vence sobre
+  // `bottleneck` (max ρ): um nó saturado pisca em vermelho; o bottleneck ainda
+  // não saturado recebe a borda foco (que permanece no veredito congelado) e o
+  // pulso suave (que para no Stop).
+  const bottleneck = runState.hasVerdict && runState.bottleneckId === id;
+  const saturated = runState.running && runState.saturatedNodeIds.has(id);
+  const bottleneckPulse = runState.running && bottleneck && !saturated;
+  const saturatedPulse = saturated;
 
   const renderDot: DotRenderer = (channel, side) =>
     side === "in" ? (
@@ -206,10 +283,19 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNode>) {
       renderDot={renderDot}
       selected={selected}
       invalid={invalid}
-      onDelete={(event) => {
-        event.stopPropagation();
-        void deleteElements({ nodes: [{ id }] });
-      }}
+      bottleneck={bottleneck}
+      bottleneckPulse={bottleneckPulse}
+      saturated={saturated}
+      saturatedPulse={saturatedPulse}
+      // Durante o run a estrutura está travada — esconde o botão de apagar.
+      onDelete={
+        runState.running
+          ? undefined
+          : (event) => {
+              event.stopPropagation();
+              void deleteElements({ nodes: [{ id }] });
+            }
+      }
     />
   );
 }

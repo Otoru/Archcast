@@ -31,3 +31,11 @@ export const Spiky: Story = {
     />
   ),
 };
+
+export const Diurnal: Story = {
+  render: () => (
+    <Harness
+      initial={{ ...defaultChallengeParams(), trafficPattern: "diurnal" }}
+    />
+  ),
+};

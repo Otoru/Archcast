@@ -10,6 +10,11 @@ import {
 } from "@/components/flow/node-attrs-form";
 import { Accordion } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 const PANEL_WIDTH = "22rem";
@@ -34,6 +39,8 @@ export function FlowInspector({
   value: valueProp,
   onValueChange,
   scrollTopSignal,
+  locked = false,
+  scrollToVerdictSignal,
 }: Readonly<{
   open: boolean;
   value?: string[];
@@ -44,6 +51,18 @@ export function FlowInspector({
    * mesmo que o usuário tivesse rolado para baixo.
    */
   scrollTopSignal?: number;
+  /**
+   * Modo run: trava o painel na seção Verdict — Node e Challenge ficam com o
+   * trigger desabilitado (não abrem), e o Verdict não fecha (a shell ignora
+   * `onValueChange` enquanto `locked`). O scroll do painel segue funcionando.
+   */
+  locked?: boolean;
+  /**
+   * Quando muda, rola a seção Verdict para dentro da vista. A shell incrementa
+   * um contador ao apertar Run, garantindo que o Verdict apareça mesmo que o
+   * painel estivesse rolado lá embaixo.
+   */
+  scrollToVerdictSignal?: number;
 }>) {
   const [internalValue, setInternalValue] = useState<string[]>(["node"]);
   const controlled = valueProp !== undefined;
@@ -61,6 +80,20 @@ export function FlowInspector({
       scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, [scrollTopSignal]);
+
+  // Verdict envolto num div com ref para podermos rolar a seção para dentro
+  // da vista quando o run abre o painel. Não dá pra por o ref direto no
+  // `Accordion.Item` (componente de função sem `forwardRef`); o wrapper preserva
+  // o `last:border-b-0` (o Verdict continua sendo o último filho do wrapper).
+  const verdictRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (scrollToVerdictSignal !== undefined) {
+      verdictRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [scrollToVerdictSignal]);
 
   return (
     <aside
@@ -82,7 +115,7 @@ export function FlowInspector({
           onValueChange={handleValueChange}
           className="flex flex-col"
         >
-          <Accordion.Item value="node">
+          <Accordion.Item value="node" disabled={locked}>
             <Accordion.Header>
               <Accordion.Trigger>
                 <NodeAccordionLabel />
@@ -92,7 +125,7 @@ export function FlowInspector({
               <NodeAttrsFormConnected />
             </Accordion.Panel>
           </Accordion.Item>
-          <Accordion.Item value="challenge">
+          <Accordion.Item value="challenge" disabled={locked}>
             <Accordion.Header>
               <Accordion.Trigger>Challenge</Accordion.Trigger>
             </Accordion.Header>
@@ -100,14 +133,19 @@ export function FlowInspector({
               <FlowParamsFormConnected />
             </Accordion.Panel>
           </Accordion.Item>
-          <Accordion.Item value="verdict">
-            <Accordion.Header>
-              <Accordion.Trigger>Verdict</Accordion.Trigger>
-            </Accordion.Header>
-            <Accordion.Panel>
-              <FlowVerdictConnected />
-            </Accordion.Panel>
-          </Accordion.Item>
+          {/* Verdict NÃO recebe `disabled`: no run ele é a seção ativa e deve
+              parecer normal/aberta. Fechar é impedido pela shell ignorar
+              `onValueChange` enquanto `locked` (valor controlado). */}
+          <div ref={verdictRef}>
+            <Accordion.Item value="verdict">
+              <Accordion.Header>
+                <Accordion.Trigger>Verdict</Accordion.Trigger>
+              </Accordion.Header>
+              <Accordion.Panel>
+                <FlowVerdictConnected />
+              </Accordion.Panel>
+            </Accordion.Item>
+          </div>
         </Accordion.Root>
       </div>
     </aside>
@@ -121,17 +159,26 @@ export function FlowInspector({
 export function FlowInspectorToggle({
   open,
   onToggle,
-}: Readonly<{ open: boolean; onToggle: () => void }>) {
+  disabled = false,
+}: Readonly<{ open: boolean; onToggle: () => void; disabled?: boolean }>) {
+  const label = open ? "Close panel" : "Open panel";
   return (
-    <Button
-      variant="outline"
-      size="icon"
-      className="rounded-full bg-background shadow-md"
-      onClick={onToggle}
-      aria-label={open ? "Close panel" : "Open panel"}
-      aria-pressed={open}
-    >
-      <PanelRightIcon />
-    </Button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggle}
+            disabled={disabled}
+            aria-label={label}
+            aria-pressed={open}
+          >
+            <PanelRightIcon />
+          </Button>
+        }
+      />
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }

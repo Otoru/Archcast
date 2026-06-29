@@ -53,7 +53,7 @@ function useComboboxContext() {
 }
 
 const comboboxTriggerVariants = cva(
-  "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-wf border-2 border-wf-border bg-wf-surface px-3 font-wf-body text-sm transition-[border-color] outline-none select-none focus-visible:border-wf-focus focus-visible:[border-width:3px] data-popup-open:border-wf-focus data-popup-open:[border-width:3px] disabled:cursor-not-allowed disabled:border-wf-border-soft disabled:bg-wf-disabled-surface disabled:opacity-55",
+  "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-wf border-2 border-wf-border bg-wf-surface px-3 font-wf-body text-sm transition-[border-color] outline-none select-none focus-visible:border-wf-focus focus-visible:[border-width:3px] data-popup-open:border-wf-focus data-popup-open:[border-width:3px] data-[disabled]:cursor-not-allowed data-[disabled]:border-wf-border-soft data-[disabled]:bg-wf-disabled-surface data-[disabled]:opacity-55",
   {
     variants: {
       invalid: {

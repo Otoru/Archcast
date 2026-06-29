@@ -284,3 +284,59 @@
     @apply bg-background text-foreground;
   }
 }
+
+/*
+ * Animações do modo Run — aplicadas via classe (não @utility, pois operam em
+ * SVG path e box-shadow com tokens wf). Mantidas fora de @layer para não serem
+ * purged pelo Tailwind v4 (classes referenciadas em strings no TS, não em
+ * @apply).
+ */
+
+/* Tracejado correndo nas edges com fluxo durante o run. */
+@keyframes wf-edge-flow {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+.wf-edge-flow {
+  stroke-dasharray: 6 4;
+  animation: wf-edge-flow 0.6s linear infinite;
+}
+
+/* Pulso do ring no node bottleneck (max ρ). */
+@keyframes wf-bottleneck-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px var(--color-wf-focus);
+  }
+  50% {
+    box-shadow: 0 0 0 5px var(--color-wf-focus);
+  }
+}
+.wf-bottleneck-pulse {
+  animation: wf-bottleneck-pulse 1.2s ease-in-out infinite;
+}
+
+/* Pisca vermelho no node saturado (ρ ≥ 1) — mais rápido/urgente que o pulso
+   do bottleneck, alternando o anel vermelho entre forte e apagado. */
+@keyframes wf-saturated-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px var(--color-wf-destructive);
+  }
+  50% {
+    box-shadow: 0 0 0 6px
+      color-mix(in srgb, var(--color-wf-destructive) 20%, transparent);
+  }
+}
+.wf-saturated-pulse {
+  animation: wf-saturated-pulse 0.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wf-edge-flow,
+  .wf-bottleneck-pulse,
+  .wf-saturated-pulse {
+    animation: none;
+  }
+}

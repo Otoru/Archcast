@@ -23,7 +23,7 @@ function SliderRoot({ className, ...props }: Readonly<SliderRootProps>) {
     >
       <SliderPrimitive.Control
         data-slot="slider-control"
-        className="relative flex h-5 w-full items-center focus-wf-ring rounded-wf"
+        className="relative flex h-5 w-full items-center focus-wf-ring rounded-wf data-[disabled]:cursor-not-allowed data-[disabled]:opacity-55"
       >
         <SliderPrimitive.Track
           data-slot="slider-track"

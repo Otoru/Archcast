@@ -42,18 +42,15 @@ function getReachableFrom(
   return reachable;
 }
 
-function getSinkNodes(graph: Graph, excludeNodeId?: string): string[] {
+function getSinkNodes(graph: Graph): string[] {
   const nodesWithOutgoing = new Set<string>();
   for (const edge of graph.edges) {
-    if (edge.from !== excludeNodeId) {
-      nodesWithOutgoing.add(edge.from);
-    }
+    nodesWithOutgoing.add(edge.from);
   }
 
   return graph.nodes
     .filter(
       (node) =>
-        node.id !== excludeNodeId &&
         !nodesWithOutgoing.has(node.id) &&
         !isOrigin(node) &&
         !isStructural(node),
@@ -70,7 +67,14 @@ function hasPathSourceToSink(graph: Graph, excludeNodeId?: string): boolean {
     return true;
   }
 
-  const sinks = getSinkNodes(graph, excludeNodeId);
+  // Sinks derivados do grafo ORIGINAL (os destinos pretendidos), não
+  // recomputados após a remoção. Antes, remover um nó fazia o predecessor
+  // cuja única saída era esse nó virar um "sink" falso — e como ele continuava
+  // alcançável a partir da fonte, o algoritmo entendia "caminho intacto" e não
+  // flaggeava SPOF (ex.: um LB logo atrás de um WAF: remover o LB deixava o
+  // WAF como dead-end alcançável, então o LB não era SPOF). Com os sinks
+  // originais, remover o LB deixa o sink real (ex.: db) inalcançável → SPOF.
+  const sinks = getSinkNodes(graph).filter((id) => id !== excludeNodeId);
   if (sinks.length === 0) {
     return true;
   }

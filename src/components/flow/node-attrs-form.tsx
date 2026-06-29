@@ -19,12 +19,22 @@ const INSTANCES_KEY = "instances";
 
 /**
  * Attrs que são razões (0–1) e por isso renderizam como slider, não como
- * `<Input type="number">`. `step` accomoda a granularidade de cada um;
+ * `<Input type="number">`. `step` acomoda a granularidade de cada um;
  * `decimals` é a precisão do valor exibido em porcentagem (ex.: 0.85 → "85%").
+ * `min`/`max` opcionais restringem o intervalo — `availability` vive no esquema
+ * 99%–100% (99.00%–100.00%, 2 casas), igual ao SLO de Availability dos params.
  */
-const RATIO_ATTRS: Record<string, { step: number; decimals: number }> = {
+const RATIO_ATTRS: Record<
+  string,
+  {
+    step: number;
+    decimals: number;
+    min?: number;
+    max?: number;
+  }
+> = {
   hitRatio: { step: 0.01, decimals: 0 },
-  availability: { step: 0.001, decimals: 0 },
+  availability: { step: 0.0001, decimals: 2, min: 0.99, max: 1 },
 };
 
 /**
@@ -120,8 +130,8 @@ export function NodeAttrsForm({
                   <Slider.Root
                     className="flex-1"
                     value={value}
-                    min={0}
-                    max={1}
+                    min={ratio.min ?? 0}
+                    max={ratio.max ?? 1}
                     step={ratio.step}
                     aria-labelledby={`attr-${key}`}
                     onValueChange={(next) => setAttr(key, next)}

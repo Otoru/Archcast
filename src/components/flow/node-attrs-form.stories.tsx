@@ -45,6 +45,10 @@ export const Cdn: Story = {
   render: () => <FormHarness initial={blockNode("n1", "cdn")} />,
 };
 
+export const Cache: Story = {
+  render: () => <FormHarness initial={blockNode("n1", "cache")} />,
+};
+
 export const MessageQueue: Story = {
   render: () => <FormHarness initial={blockNode("n1", "message-queue")} />,
 };
