@@ -19,6 +19,14 @@ const preview: Preview = {
         enableSystem={false}
         storageKey="wireframe-storybook-theme"
         disableTransitionOnChange
+        // O next-themes injeta um <script> inline (dangerouslySetInnerHTML) para
+        // evitar FOUC. No React 19 do Next 16, renderizar <script> na árvore de
+        // componentes dispara "Encountered a script tag while rendering React
+        // component" — e no storybook (render 100% client, sem SSR) esse script
+        // nem executa (scripts via innerHTML não rodam); a theme é aplicada pelo
+        // useEffect. Marcar como data block silencia o aviso sem alterar o
+        // comportamento. O app real (layout.tsx) não é afetado.
+        scriptProps={{ type: "application/json" }}
       >
         <div className={cn(wfFontVariables, "bg-wf-bg p-6 font-wf-body")}>
           <Story />
