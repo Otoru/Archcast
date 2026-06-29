@@ -63,13 +63,13 @@ function doc(
 
 const ECOMMERCE = doc(
   [
-    n("wc", "web-client", 0, 200),
-    n("cdn", "cdn", 220, 200),
-    n("storage", "object-storage", 440, 80),
-    n("gw", "api-gateway", 440, 320),
-    n("app", "app-server", 660, 200, { instances: 3, latBase: 10 }),
-    n("cache", "cache", 880, 80, { instances: 2 }),
-    n("db", "sql-db", 880, 320, { instances: 2 }),
+    n("wc", "web-client", 0, 240),
+    n("cdn", "cdn", 360, 120),
+    n("storage", "object-storage", 720, 120),
+    n("gw", "api-gateway", 360, 360),
+    n("app", "app-server", 720, 360, { instances: 3, latBase: 10 }),
+    n("cache", "cache", 1080, 240, { instances: 2 }),
+    n("db", "sql-db", 1080, 480, { instances: 2 }),
   ],
   [
     e("e1", "wc", "cdn", "read"),
@@ -86,11 +86,11 @@ const ECOMMERCE = doc(
 
 const QUEUE_WORKERS = doc(
   [
-    n("wc", "web-client", 0, 200),
-    n("app", "app-server", 220, 200, { instances: 3, latBase: 10 }),
-    n("q", "message-queue", 440, 200, { instances: 3 }),
-    n("worker", "worker", 660, 200, { instances: 3 }),
-    n("db", "sql-db", 880, 200, { instances: 2 }),
+    n("wc", "web-client", 0, 240),
+    n("app", "app-server", 360, 240, { instances: 3, latBase: 10 }),
+    n("q", "message-queue", 720, 240, { instances: 3 }),
+    n("worker", "worker", 1080, 240, { instances: 3 }),
+    n("db", "sql-db", 720, 460, { instances: 2 }),
   ],
   [
     e("e1", "wc", "app", "write"),
@@ -104,10 +104,10 @@ const QUEUE_WORKERS = doc(
 
 const CACHE_ASIDE = doc(
   [
-    n("wc", "web-client", 0, 200),
-    n("app", "app-server", 240, 200, { instances: 3, latBase: 10 }),
-    n("cache", "cache", 480, 80, { hitRatio: 0.85, instances: 2 }),
-    n("db", "sql-db", 480, 320, { instances: 2 }),
+    n("wc", "web-client", 0, 240),
+    n("app", "app-server", 360, 240, { instances: 3, latBase: 10 }),
+    n("cache", "cache", 720, 100, { hitRatio: 0.85, instances: 2 }),
+    n("db", "sql-db", 720, 380, { instances: 2 }),
   ],
   [
     e("e1", "wc", "app", "read"),
