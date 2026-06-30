@@ -2,17 +2,19 @@
 
 import "@xyflow/react/dist/style.css";
 
-import type { Connection, NodeOrigin, Viewport } from "@xyflow/react";
 import {
   addEdge,
   Background,
   BackgroundVariant,
+  type Connection,
   Controls,
   type Edge,
   MiniMap,
+  type NodeOrigin,
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  type Viewport,
 } from "@xyflow/react";
 import { useTheme } from "next-themes";
 import { type DragEvent, useCallback, useEffect, useMemo } from "react";
@@ -200,8 +202,8 @@ function FlowInner() {
   );
 
   useEffect(() => {
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    globalThis.addEventListener("keydown", onKeyDown);
+    return () => globalThis.removeEventListener("keydown", onKeyDown);
   }, [onKeyDown]);
 
   return (

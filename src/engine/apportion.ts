@@ -17,6 +17,81 @@ interface ClassifiedEdge {
     | { kind: "broadcaster" };
 }
 
+interface ClassifiedOutgoing {
+  absorbers: ClassifiedEdge[];
+  servers: ClassifiedEdge[];
+  broadcasters: ClassifiedEdge[];
+  // Absorvedores-encaminhadores (CDN/WAF) irmãos: têm `roleFor` = server, mas
+  // são identificados pelo primitive. `hitRatio` = fração que servem direto.
+  forwarders: { edgeId: string; hitRatio: number }[];
+}
+
+/** Reparte as edges de saída do canal em servers/absorbers/broadcasters/forwarders. */
+function classifyOutgoing(
+  outgoing: Graph["edges"],
+  nodeById: Map<string, Graph["nodes"][number]>,
+  registry: NodeTypeRegistry,
+): ClassifiedOutgoing {
+  const result: ClassifiedOutgoing = {
+    absorbers: [],
+    servers: [],
+    broadcasters: [],
+    forwarders: [],
+  };
+  for (const edge of outgoing) {
+    const destNode = nodeById.get(edge.to);
+    if (!destNode) {
+      continue;
+    }
+    const handler = registry.getHandler(destNode);
+    const resolved = registry.resolve(destNode);
+    const role = handler.roleFor(edge.kind, resolved);
+    if (!role) {
+      continue;
+    }
+    const classified: ClassifiedEdge = {
+      edgeId: edge.id,
+      nodeId: destNode.id,
+      edgeWeight: edge.weight,
+      role,
+    };
+    if (role.kind === "absorber") {
+      result.absorbers.push(classified);
+    } else if (role.kind === "broadcaster") {
+      result.broadcasters.push(classified);
+    } else if (resolved.primitive === "absorber-forwarding") {
+      // outboundMultiplier = 1 − hitRatio (fração de miss repassada adiante).
+      const passThrough = handler.outboundMultiplier?.(resolved) ?? 1;
+      result.forwarders.push({ edgeId: edge.id, hitRatio: 1 - passThrough });
+    } else {
+      result.servers.push(classified);
+    }
+  }
+  return result;
+}
+
+/** Capacidade-peso de um server (peso da edge se `weighted`, senão capacidade distribuída). */
+function serverWeight(
+  server: ClassifiedEdge,
+  registry: NodeTypeRegistry,
+  nodeById: Map<string, Graph["nodes"][number]>,
+  useWeighted: boolean,
+  distributedUpstream: Set<string>,
+): number {
+  if (useWeighted && server.edgeWeight !== undefined) {
+    return server.edgeWeight;
+  }
+  const node = nodeById.get(server.nodeId);
+  if (!node) {
+    return 0;
+  }
+  const resolved = registry.resolve(node);
+  return distributedCapacity(
+    resolved.attrs,
+    distributedUpstream.has(server.nodeId),
+  );
+}
+
 export function apportionChannel(
   sourceNodeId: string,
   channel: EdgeChannel,
@@ -67,45 +142,11 @@ export function apportionChannel(
     };
   }
 
-  const absorbers: ClassifiedEdge[] = [];
-  const servers: ClassifiedEdge[] = [];
-  const broadcasters: ClassifiedEdge[] = [];
-  // Absorvedores-encaminhadores (CDN/WAF) irmãos: têm `roleFor` = server, mas
-  // são identificados pelo primitive. `hitRatio` = fração que servem direto.
-  const forwarders: { edgeId: string; hitRatio: number }[] = [];
-
-  for (const edge of outgoing) {
-    const destNode = nodeById.get(edge.to);
-    if (!destNode) {
-      continue;
-    }
-
-    const handler = registry.getHandler(destNode);
-    const resolved = registry.resolve(destNode);
-    const role = handler.roleFor(channel, resolved);
-    if (!role) {
-      continue;
-    }
-
-    const classified: ClassifiedEdge = {
-      edgeId: edge.id,
-      nodeId: destNode.id,
-      edgeWeight: edge.weight,
-      role,
-    };
-
-    if (role.kind === "absorber") {
-      absorbers.push(classified);
-    } else if (role.kind === "broadcaster") {
-      broadcasters.push(classified);
-    } else if (resolved.primitive === "absorber-forwarding") {
-      // outboundMultiplier = 1 − hitRatio (fração de miss repassada adiante).
-      const passThrough = handler.outboundMultiplier?.(resolved) ?? 1;
-      forwarders.push({ edgeId: edge.id, hitRatio: 1 - passThrough });
-    } else {
-      servers.push(classified);
-    }
-  }
+  const { absorbers, servers, broadcasters, forwarders } = classifyOutgoing(
+    outgoing,
+    nodeById,
+    registry,
+  );
 
   if (
     absorbers.length === 0 &&
@@ -152,42 +193,31 @@ export function apportionChannel(
     residual *= 1 - forwarder.hitRatio;
   }
 
-  const totalWeight = servers.reduce((sum, server) => {
-    const node = nodeById.get(server.nodeId);
-    if (!node) {
-      return sum;
-    }
-    const resolved = registry.resolve(node);
-    if (useWeighted && server.edgeWeight !== undefined) {
-      return sum + server.edgeWeight;
-    }
-    return (
+  const totalWeight = servers.reduce(
+    (sum, server) =>
       sum +
-      distributedCapacity(
-        resolved.attrs,
-        distributedUpstream.has(server.nodeId),
-      )
-    );
-  }, 0);
+      serverWeight(
+        server,
+        registry,
+        nodeById,
+        useWeighted,
+        distributedUpstream,
+      ),
+    0,
+  );
 
   const equalSplit = totalWeight <= 0;
 
   for (const server of servers) {
-    const node = nodeById.get(server.nodeId);
-    if (!node) {
-      continue;
-    }
-    const resolved = registry.resolve(node);
     const weight = equalSplit
       ? 1 / servers.length
-      : totalWeight > 0
-        ? (useWeighted && server.edgeWeight !== undefined
-            ? server.edgeWeight
-            : distributedCapacity(
-                resolved.attrs,
-                distributedUpstream.has(server.nodeId),
-              )) / totalWeight
-        : 0;
+      : serverWeight(
+          server,
+          registry,
+          nodeById,
+          useWeighted,
+          distributedUpstream,
+        ) / totalWeight;
     deliveries.set(server.edgeId, residual * weight);
   }
 

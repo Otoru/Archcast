@@ -9,18 +9,13 @@ import {
   useState,
 } from "react";
 import { AppSidebar } from "@/components/flow/app-sidebar";
-import {
-  applyClipboardEntry,
-  copySelection,
-  duplicateSelection,
-  pasteSelection,
-} from "@/components/flow/clipboard";
 import { BLOCK_DND_MIME } from "@/components/flow/dnd";
 import {
   FlowEditorProvider,
   useFlowEditor,
 } from "@/components/flow/flow-editor-state";
 import { FlowInspector } from "@/components/flow/flow-inspector";
+import { handleShortcutKey } from "@/components/flow/flow-shortcuts";
 import { FlowToolbar } from "@/components/flow/flow-toolbar";
 import {
   readStoredGraph,
@@ -169,67 +164,25 @@ function ShellLayout() {
   };
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const s = shortcutsRef.current;
       const target = event.target as HTMLElement | null;
       const tag = target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) {
         return;
       }
-      const mod = event.ctrlKey || event.metaKey;
-      if (!mod) {
-        if (event.key === "?") {
-          event.preventDefault();
-          s.setHelpOpen(true);
-        }
-        return;
-      }
-      const key = event.key.toLowerCase();
-      if (key === "enter") {
+      const consumed = handleShortcutKey(
+        {
+          key: event.key,
+          mod: event.ctrlKey || event.metaKey,
+          shift: event.shiftKey,
+        },
+        shortcutsRef.current,
+      );
+      if (consumed) {
         event.preventDefault();
-        if (s.running) {
-          s.stopRun();
-        } else {
-          s.handleRun();
-        }
-        return;
-      }
-      if (key === "z") {
-        event.preventDefault();
-        if (event.shiftKey) {
-          s.history.redo();
-        } else {
-          s.history.undo();
-        }
-        return;
-      }
-      if (key === "c") {
-        event.preventDefault();
-        copySelection(s.nodes, s.edges);
-        return;
-      }
-      if (key === "v") {
-        event.preventDefault();
-        if (!s.running) {
-          const entry = pasteSelection();
-          if (entry) {
-            applyClipboardEntry(entry, s.setNodes, s.setEdges);
-          }
-        }
-        return;
-      }
-      if (key === "d") {
-        event.preventDefault();
-        if (!s.running) {
-          const entry = duplicateSelection(s.nodes, s.edges);
-          if (entry) {
-            applyClipboardEntry(entry, s.setNodes, s.setEdges);
-          }
-        }
-        return;
       }
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    globalThis.addEventListener("keydown", onKeyDown);
+    return () => globalThis.removeEventListener("keydown", onKeyDown);
   }, []);
 
   // Aceita o drop-effect "move" em toda a shell durante o arraste de um bloco

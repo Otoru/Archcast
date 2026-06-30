@@ -60,7 +60,7 @@ export function serializeGraph(
     nodes: nodes.map((node) => ({
       id: node.id,
       kind: node.data.kind,
-      attrs: { ...(node.data.attrs ?? {}) },
+      attrs: { ...node.data.attrs },
       position: { x: node.position.x, y: node.position.y },
     })),
     edges: edges.map((edge) => ({
@@ -92,7 +92,7 @@ function isNumber(value: unknown): value is number {
  */
 export function deserializeGraph(doc: unknown): LoadedGraph {
   if (!isRecord(doc)) {
-    throw new Error("Invalid graph document: expected a JSON object.");
+    throw new TypeError("Invalid graph document: expected a JSON object.");
   }
   if (doc.version !== GRAPH_DOC_VERSION) {
     throw new Error(
@@ -100,21 +100,25 @@ export function deserializeGraph(doc: unknown): LoadedGraph {
     );
   }
   if (!Array.isArray(doc.nodes) || !Array.isArray(doc.edges)) {
-    throw new Error("Invalid graph document: nodes and edges must be arrays.");
+    throw new TypeError(
+      "Invalid graph document: nodes and edges must be arrays.",
+    );
   }
   if (!isRecord(doc.params)) {
-    throw new Error("Invalid graph document: params must be an object.");
+    throw new TypeError("Invalid graph document: params must be an object.");
   }
 
   const nodes: BlockNodeType[] = doc.nodes.map((raw, index) => {
     if (!isRecord(raw)) {
-      throw new Error(`Invalid node at index ${index}: expected an object.`);
+      throw new TypeError(
+        `Invalid node at index ${index}: expected an object.`,
+      );
     }
     if (typeof raw.id !== "string") {
-      throw new Error(`Invalid node at index ${index}: missing id.`);
+      throw new TypeError(`Invalid node at index ${index}: missing id.`);
     }
     if (typeof raw.kind !== "string") {
-      throw new Error(`Invalid node at index ${index}: missing kind.`);
+      throw new TypeError(`Invalid node at index ${index}: missing kind.`);
     }
     if (!getPreset(raw.kind)) {
       throw new Error(`Unknown block kind: ${raw.kind}`);
@@ -124,7 +128,7 @@ export function deserializeGraph(doc: unknown): LoadedGraph {
       !isNumber(raw.position.x) ||
       !isNumber(raw.position.y)
     ) {
-      throw new Error(`Invalid node at index ${index}: missing position.`);
+      throw new TypeError(`Invalid node at index ${index}: missing position.`);
     }
     const attrs = isRecord(raw.attrs)
       ? (Object.fromEntries(
@@ -142,14 +146,16 @@ export function deserializeGraph(doc: unknown): LoadedGraph {
 
   const edges: Edge[] = doc.edges.map((raw, index) => {
     if (!isRecord(raw)) {
-      throw new Error(`Invalid edge at index ${index}: expected an object.`);
+      throw new TypeError(
+        `Invalid edge at index ${index}: expected an object.`,
+      );
     }
     if (
       typeof raw.id !== "string" ||
       typeof raw.source !== "string" ||
       typeof raw.target !== "string"
     ) {
-      throw new Error(
+      throw new TypeError(
         `Invalid edge at index ${index}: missing id/source/target.`,
       );
     }

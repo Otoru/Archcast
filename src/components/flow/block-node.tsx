@@ -119,6 +119,30 @@ export type DotRenderer = (
 ) => ReactNode;
 
 /**
+ * Borda dos cartões-fantasma da pilha. Mesma cor do estado do cartão
+ * principal, EXCETO no bottleneck, onde o traço foco cai para 1px (`border`)
+ * — o preto 2px em cada card da pilha ficava pesado. Prioridade mutuamente
+ * exclusiva: (invalid|saturated) > bottleneck > selected > neutro.
+ */
+function ghostBorderClassFor(state: {
+  invalid: boolean;
+  saturated: boolean;
+  bottleneck: boolean;
+  selected: boolean;
+}): string {
+  if (state.invalid || state.saturated) {
+    return "border-2 border-wf-destructive ring-wf-destructive";
+  }
+  if (state.bottleneck) {
+    return "border border-wf-focus";
+  }
+  if (state.selected) {
+    return "border-2 border-wf-focus ring-wf-focus";
+  }
+  return "border-2 border-wf-border";
+}
+
+/**
  * Corpo visual do nó, sem dependência de React Flow: ícone da camada +
  * rótulo do bloco + Badge da camada + uma linha por porta (read/write/async).
  * O "ponto" de cada porta vem de `renderDot` — `Handle` no canvas, span
@@ -137,7 +161,7 @@ export function BlockNodeShell({
   saturatedPulse = false,
   instances = DEFAULT_INSTANCES,
   onDelete,
-}: {
+}: Readonly<{
   preset: BlockPreset;
   meta: LayerMeta;
   renderDot: DotRenderer;
@@ -155,7 +179,7 @@ export function BlockNodeShell({
   instances?: number;
   /** Quando presente, mostra um X no canto superior direito que apaga o nó. */
   onDelete?: (event: MouseEvent<HTMLButtonElement>) => void;
-}) {
+}>) {
   const Icon = meta.icon;
   const ins = preset.edges.in;
   const outs = preset.edges.out;
@@ -186,15 +210,12 @@ export function BlockNodeShell({
   // width+color (evita conflito `border`/`border-2` decidido por ordem de
   // CSS). Saturated/invalid/selected seguem o cartão principal (vermelho/foco
   // em 2px — o vermelho é alarme e não incomora).
-  const ghostBorderClass = invalid
-    ? "border-2 border-wf-destructive ring-wf-destructive"
-    : saturated
-      ? "border-2 border-wf-destructive ring-wf-destructive"
-      : bottleneck
-        ? "border border-wf-focus"
-        : selected
-          ? "border-2 border-wf-focus ring-wf-focus"
-          : "border-2 border-wf-border";
+  const ghostBorderClass = ghostBorderClassFor({
+    invalid,
+    saturated,
+    bottleneck,
+    selected,
+  });
   // Pulso (animação do anel) só no cartão principal: replicate em todos os
   // fantasmas viraria ruído visual (vários anéis pulsando defasados pelo
   // offset). A borda colorida já cobre a pilha inteira; o topo pisca.
@@ -380,7 +401,9 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNode>) {
           ? undefined
           : (event) => {
               event.stopPropagation();
-              void deleteElements({ nodes: [{ id }] });
+              deleteElements({ nodes: [{ id }] }).catch(() => {
+                // RF rejeita só se o nó já sumiu — sem ação necessária.
+              });
             }
       }
     />

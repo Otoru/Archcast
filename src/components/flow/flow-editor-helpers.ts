@@ -255,25 +255,15 @@ function flowMagnitude(flow: { read: number; write: number; async: number }) {
  * pós-stop) gatinga os destaques. Sem veredito → estado "vazio" (nada
  * destacado), mantendo `running` para o lock caso seja chamado assim.
  */
-export function deriveRunState(
-  verdict: Verdict | null,
+/**
+ * Varre `verdict.nodes` (excluindo client e nós fora do canvas) para achar os
+ * saturados e o bottleneck (max ρ). Extraído de `deriveRunState` para manter a
+ * complexidade cognitiva sob controle.
+ */
+function deriveBottleneck(
+  verdict: Verdict,
   nodes: BlockNodeType[],
-  edges: RFEdge[],
-  running: boolean,
-): RunState {
-  if (!verdict) {
-    return {
-      running,
-      hasVerdict: false,
-      bottleneckId: null,
-      saturatedNodeIds: new Set<string>(),
-      edgeStateById: new Map<string, RunEdgeState>(),
-      maxFlow: 0,
-    };
-  }
-
-  // client layer não entra no raciocínio de sistema (mesmo critério do
-  // `nodeRows`) — não é candidata a bottleneck nem a destaque de saturado.
+): { saturatedNodeIds: Set<string>; bottleneckId: string | null } {
   const onCanvas = canvasNodeIds(nodes);
   const clientIds = new Set<string>();
   for (const node of nodes) {
@@ -298,9 +288,32 @@ export function deriveRunState(
     }
   }
   // Se nenhum nó não-cliente tem resultado, bottleneckId fica null (bem).
-  if (maxRho === Number.NEGATIVE_INFINITY) {
-    bottleneckId = null;
+  return {
+    saturatedNodeIds,
+    bottleneckId: maxRho === Number.NEGATIVE_INFINITY ? null : bottleneckId,
+  };
+}
+
+export function deriveRunState(
+  verdict: Verdict | null,
+  nodes: BlockNodeType[],
+  edges: RFEdge[],
+  running: boolean,
+): RunState {
+  if (!verdict) {
+    return {
+      running,
+      hasVerdict: false,
+      bottleneckId: null,
+      saturatedNodeIds: new Set<string>(),
+      edgeStateById: new Map<string, RunEdgeState>(),
+      maxFlow: 0,
+    };
   }
+
+  // client layer não entra no raciocínio de sistema (mesmo critério do
+  // `nodeRows`) — não é candidata a bottleneck nem a destaque de saturado.
+  const { saturatedNodeIds, bottleneckId } = deriveBottleneck(verdict, nodes);
 
   let maxFlow = 0;
   for (const flow of Object.values(verdict.edgeFlows)) {

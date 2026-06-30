@@ -50,7 +50,7 @@ export function useSimulateWorker(opts: SimulateWorkerOptions): SimulateWorker {
     if (workerRef.current) {
       return workerRef.current;
     }
-    if (typeof window === "undefined") {
+    if (typeof globalThis.window === "undefined") {
       return null;
     }
     try {

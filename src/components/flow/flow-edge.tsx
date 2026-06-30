@@ -3,6 +3,7 @@
 import { BaseEdge, type EdgeProps, getBezierPath } from "@xyflow/react";
 import { useContext } from "react";
 import { RunStateContext } from "@/components/flow/block-node";
+import { strokeByMagnitude } from "@/components/flow/flow-edge-style";
 
 /**
  * Edge custom do modo run: deriva cor e espessura do `RunStateContext`
@@ -52,11 +53,7 @@ export function FlowEdge({
   const saturatedNow = runState.running && edgeState.saturated;
   const stroke = saturatedNow
     ? "var(--color-wf-destructive)"
-    : edgeState.magnitude < 0.33
-      ? "var(--color-wf-border-soft)"
-      : edgeState.magnitude < 0.66
-        ? "var(--color-wf-border)"
-        : "var(--color-wf-focus)";
+    : strokeByMagnitude(edgeState.magnitude);
   const strokeWidth = saturatedNow ? 2.5 : 1.5 + edgeState.magnitude * 1.5;
   // Anima o tracejado só no modo run ativo (parado/frozen mantém a cor, sem
   // movimento — o "congelamento" do Stop).

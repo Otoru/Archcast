@@ -15,12 +15,12 @@ const STORAGE_KEY = "wireframe:graph";
  * nunca lança; o editor parte do canvas vazio nesse caso.
  */
 export function readStoredGraph(): LoadedGraph | null {
-  if (typeof window === "undefined") {
+  if (typeof globalThis.window === "undefined") {
     return null;
   }
   let raw: string | null;
   try {
-    raw = window.localStorage.getItem(STORAGE_KEY);
+    raw = globalThis.localStorage.getItem(STORAGE_KEY);
   } catch {
     return null;
   }
@@ -40,12 +40,12 @@ export function writeStoredGraph(
   edges: Edge[],
   params: ChallengeParams,
 ): void {
-  if (typeof window === "undefined") {
+  if (typeof globalThis.window === "undefined") {
     return;
   }
   try {
     const doc = serializeGraph(nodes, edges, params);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(doc));
+    globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify(doc));
   } catch {
     // quota cheia / modo privado — silencioso.
   }
@@ -53,11 +53,11 @@ export function writeStoredGraph(
 
 /** Remove o grafo salvo (usado pelo Clear pra um reset limpo). */
 export function clearStoredGraph(): void {
-  if (typeof window === "undefined") {
+  if (typeof globalThis.window === "undefined") {
     return;
   }
   try {
-    window.localStorage.removeItem(STORAGE_KEY);
+    globalThis.localStorage.removeItem(STORAGE_KEY);
   } catch {
     // ignore
   }
