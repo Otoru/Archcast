@@ -3,7 +3,23 @@
   "projectOwner": "Otoru",
   "repoType": "github",
   "repoHost": "https://github.com",
-  "files": ["README.md"],
+  "files": [
+    "README.md"
+  ],
   "commit": true,
-  "contributors": []
+  "contributors": [
+    {
+      "login": "Otoru",
+      "name": "Vitor Hugo",
+      "avatar_url": "https://avatars.githubusercontent.com/u/26543872?v=4",
+      "profile": "https://vitoru.dev",
+      "contributions": [
+        "code",
+        "doc"
+      ]
+    }
+  ],
+  "commitType": "docs",
+  "commitConvention": "angular",
+  "contributorsPerLine": 7
 }
