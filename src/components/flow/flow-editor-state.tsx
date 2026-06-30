@@ -21,10 +21,7 @@ import {
 } from "react";
 import type { BlockNode as BlockNodeType } from "@/components/flow/block-node";
 import { defaultChallengeParams } from "@/components/flow/flow-editor-helpers";
-import type {
-  GraphDocument,
-  LoadedGraph,
-} from "@/components/flow/graph-serialization";
+import type { LoadedGraph } from "@/components/flow/graph-serialization";
 import {
   type HistoryApi,
   useEditorHistory,
@@ -309,4 +306,4 @@ export function FlowEditorProvider({
 }
 
 // Re-exportado pra consumidores que montam snapshots de GraphDocument.
-export type { GraphDocument };
+export type { GraphDocument } from "@/components/flow/graph-serialization";

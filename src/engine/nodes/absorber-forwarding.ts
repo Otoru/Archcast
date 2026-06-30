@@ -31,7 +31,7 @@ export const absorberForwardingHandler: PrimitiveHandler = {
         ? deliveredLambda * (1 - passThrough)
         : undefined;
 
-    return dropped !== undefined ? { ...result, dropped } : result;
+    return dropped === undefined ? result : { ...result, dropped };
   },
   outboundMultiplier(resolved: ResolvedNode): number {
     const hitRatio = resolved.attrs.hitRatio ?? 0;

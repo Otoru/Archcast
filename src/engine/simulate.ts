@@ -58,7 +58,49 @@ function weightedP99Latency(ticks: TickResult[], tickSec: number): number {
       return sample.value;
     }
   }
-  return samples[samples.length - 1].value;
+  // `samples` é não-vazio (guarda acima), então `.at(-1)` nunca é undefined.
+  return (samples.at(-1) as (typeof samples)[number]).value;
+}
+
+interface TickAccumulators {
+  saturatedNodes: Set<string>;
+  ratelimitedNodes: Set<string>;
+  peakProvisioned: Record<string, number>;
+  backlogSnapshots: Record<string, number[]>;
+}
+
+/**
+ * Acumula os resultados de um tick nos agregados cross-tick (saturação,
+ * ratelimit, pico de provisionamento, snapshots de backlog) e devolve o
+ * backlog do tick (usado como estado inicial do próximo). Extraído de
+ * `simulate` para manter a complexidade cognitiva sob controle.
+ */
+function accumulateTick(
+  nodeResults: Record<string, NodeResult>,
+  acc: TickAccumulators,
+): Record<string, number> {
+  const backlog: Record<string, number> = {};
+  for (const [nodeId, result] of Object.entries(nodeResults)) {
+    if (result.saturated) {
+      acc.saturatedNodes.add(nodeId);
+    }
+    if (result.rejectedRps !== undefined && result.rejectedRps > 0) {
+      acc.ratelimitedNodes.add(nodeId);
+    }
+    if (result.provisioned !== undefined) {
+      acc.peakProvisioned[nodeId] = Math.max(
+        acc.peakProvisioned[nodeId] ?? 0,
+        result.provisioned,
+      );
+    }
+    if (result.backlog !== undefined) {
+      backlog[nodeId] = result.backlog;
+      const snapshots = acc.backlogSnapshots[nodeId] ?? [];
+      snapshots.push(result.backlog);
+      acc.backlogSnapshots[nodeId] = snapshots;
+    }
+  }
+  return backlog;
 }
 
 /**
@@ -92,27 +134,12 @@ export function simulate(
       registry,
     );
 
-    const backlog: Record<string, number> = {};
-    for (const [nodeId, result] of Object.entries(propagation.nodeResults)) {
-      if (result.saturated) {
-        saturatedNodes.add(nodeId);
-      }
-      if (result.rejectedRps !== undefined && result.rejectedRps > 0) {
-        ratelimitedNodes.add(nodeId);
-      }
-      if (result.provisioned !== undefined) {
-        peakProvisioned[nodeId] = Math.max(
-          peakProvisioned[nodeId] ?? 0,
-          result.provisioned,
-        );
-      }
-      if (result.backlog !== undefined) {
-        backlog[nodeId] = result.backlog;
-        const snapshots = backlogSnapshots[nodeId] ?? [];
-        snapshots.push(result.backlog);
-        backlogSnapshots[nodeId] = snapshots;
-      }
-    }
+    const backlog = accumulateTick(propagation.nodeResults, {
+      saturatedNodes,
+      ratelimitedNodes,
+      peakProvisioned,
+      backlogSnapshots,
+    });
 
     ticks.push({
       tSec: point.tSec,

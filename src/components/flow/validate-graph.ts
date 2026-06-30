@@ -17,11 +17,12 @@ export function channelFromHandle(
   if (!handleId) {
     return undefined;
   }
-  const suffix = handleId.startsWith("in-")
-    ? handleId.slice(3)
-    : handleId.startsWith("out-")
-      ? handleId.slice(4)
-      : handleId;
+  let suffix = handleId;
+  if (handleId.startsWith("in-")) {
+    suffix = handleId.slice(3);
+  } else if (handleId.startsWith("out-")) {
+    suffix = handleId.slice(4);
+  }
   return CHANNELS.find((channel) => channel === suffix);
 }
 

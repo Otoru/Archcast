@@ -70,7 +70,8 @@ function pickP99Tick(sim: SimulationResult): TickResult {
       finite[0],
     );
   }
-  return ticks[ticks.length - 1];
+  // `ticks` é não-vazio (guarda no topo), então `.at(-1)` nunca é undefined.
+  return ticks.at(-1) as TickResult;
 }
 
 /**

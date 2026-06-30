@@ -6,7 +6,6 @@ import {
   deserializeGraph,
   type GraphDocument,
   type LoadedGraph,
-  serializeGraph,
 } from "@/components/flow/graph-serialization";
 
 export type GraphIO = {
@@ -44,7 +43,7 @@ export function useGraphIO(
   }, [getSnapshot]);
 
   const importGraph = useCallback(() => {
-    if (typeof window === "undefined") {
+    if (typeof globalThis.window === "undefined") {
       return;
     }
     const input = document.createElement("input");
@@ -75,4 +74,4 @@ export function useGraphIO(
 }
 
 // Re-exporta a serialização pra quem usa I/O precisar montar snapshots.
-export { serializeGraph };
+export { serializeGraph } from "@/components/flow/graph-serialization";

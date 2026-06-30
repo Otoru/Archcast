@@ -153,8 +153,8 @@ export function NodeAttrsForm({
               <Input
                 id={`attr-${key}`}
                 type="number"
-                value={override != null ? String(override) : ""}
-                placeholder={defaultValue != null ? String(defaultValue) : ""}
+                value={override == null ? "" : String(override)}
+                placeholder={defaultValue == null ? "" : String(defaultValue)}
                 onChange={handleField(key)}
               />
             </Field>
