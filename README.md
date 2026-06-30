@@ -40,9 +40,23 @@ Contributions are welcome. Read the [Contributing guide](CONTRIBUTING.md) and th
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+[![All Contributors](https://img.shields.io/badge/all_contributors-1-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://vitoru.dev"><img src="https://avatars.githubusercontent.com/u/26543872?v=4?s=100" width="100px;" alt="Vitor Hugo"/><br /><sub><b>Vitor Hugo</b></sub></a><br /><a href="https://github.com/Otoru/Archcast/commits?author=Otoru" title="Code">💻</a> <a href="https://github.com/Otoru/Archcast/commits?author=Otoru" title="Documentation">📖</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
 Maintained by the [all-contributors](https://allcontributors.org) bot — comment `@all-contributors please add @user for code,docs` on any issue or PR to add someone.
