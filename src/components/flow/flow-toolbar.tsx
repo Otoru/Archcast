@@ -49,13 +49,15 @@ const MOD =
 type FlowToolbarProps = {
   inspectorOpen: boolean;
   onToggleInspector: () => void;
-  /** Run: abre o inspector na seção Verdict + startRun (a shell orquestra os dois). */
+  /** Run: opens the inspector on the Verdict section + startRun (the shell orchestrates both). */
   onRun: () => void;
   helpOpen: boolean;
   onHelpChange: (open: boolean) => void;
+  /** Triggered by the "Repeat tour" button inside the HelpDialog. */
+  onStartTour: () => void;
 };
 
-/** Botão de ícone com tooltip — envolve o Button base-ui via `render` no trigger. */
+/** Icon button with tooltip — wraps the base-ui Button via `render` on the trigger. */
 function ToolbarButton({
   label,
   disabled,
@@ -95,11 +97,11 @@ function applyEntry(
 }
 
 /**
- * Barra superior do playground: sidebar toggle, Run/Stop, dropdowns
- * File/Presets/Edit, Share, Help — e à direita Theme + Inspector toggle. Consome
- * `useFlowEditor` (estado + histórico + applyGraph + requestFitView) e
- * `useGraphIO` (export/import/share). Não chama `useReactFlow` (está fora do
- * ReactFlowProvider) — `fitView` é sinalizado via contexto.
+ * Playground top bar: sidebar toggle, Run/Stop, File/Presets/Edit dropdowns,
+ * Share, Help — and on the right Theme + Inspector toggle. Consumes
+ * `useFlowEditor` (state + history + applyGraph + requestFitView) and
+ * `useGraphIO` (export/import/share). Doesn't call `useReactFlow` (it's outside
+ * the ReactFlowProvider) — `fitView` is signaled via context.
  */
 export function FlowToolbar({
   inspectorOpen,
@@ -107,6 +109,7 @@ export function FlowToolbar({
   onRun,
   helpOpen,
   onHelpChange,
+  onStartTour,
 }: Readonly<FlowToolbarProps>) {
   const {
     nodes,
@@ -162,8 +165,8 @@ export function FlowToolbar({
 
   const handlePreset = useCallback(
     (preset: PresetGraph) => {
-      // Presets guardam o `GraphDocument` (plano, serializável); `deserializeGraph`
-      // reconstrói o shape RF (e valida cada kind) antes de aplicar.
+      // Presets store the `GraphDocument` (flat, serializable); `deserializeGraph`
+      // rebuilds the RF shape (and validates each kind) before applying.
       applyGraph(deserializeGraph(preset.doc));
       requestFitView();
       toast.success(`Loaded preset: ${preset.title}`);
@@ -190,6 +193,7 @@ export function FlowToolbar({
             size="sm"
             onClick={onRun}
             loading={computing}
+            data-tour="run"
           >
             <PlayIcon />
             Run
@@ -275,7 +279,14 @@ export function FlowToolbar({
           disabled={running}
         />
       </header>
-      <HelpDialog open={helpOpen} onOpenChange={onHelpChange} />
+      <HelpDialog
+        open={helpOpen}
+        onOpenChange={onHelpChange}
+        onStartTour={() => {
+          onHelpChange(false);
+          onStartTour();
+        }}
+      />
     </TooltipProvider>
   );
 }

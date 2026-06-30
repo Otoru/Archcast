@@ -46,21 +46,21 @@ export function FlowInspector({
   value?: string[];
   onValueChange?: (value: string[]) => void;
   /**
-   * Sempre que este número muda, o painel rola de volta ao topo. A shell passa
-   * o `nodeClickNonce` aqui, então clicar num nó traz a seção Node à vista
-   * mesmo que o usuário tivesse rolado para baixo.
+   * Whenever this number changes, the panel scrolls back to the top. The shell
+   * passes `nodeClickNonce` here, so clicking a node brings the Node section
+   * into view even if the user had scrolled down.
    */
   scrollTopSignal?: number;
   /**
-   * Modo run: trava o painel na seção Verdict — Node e Challenge ficam com o
-   * trigger desabilitado (não abrem), e o Verdict não fecha (a shell ignora
-   * `onValueChange` enquanto `locked`). O scroll do painel segue funcionando.
+   * Run mode: locks the panel on the Verdict section — Node and Challenge have
+   * their trigger disabled (they don't open), and the Verdict can't close (the
+   * shell ignores `onValueChange` while `locked`). Panel scrolling still works.
    */
   locked?: boolean;
   /**
-   * Quando muda, rola a seção Verdict para dentro da vista. A shell incrementa
-   * um contador ao apertar Run, garantindo que o Verdict apareça mesmo que o
-   * painel estivesse rolado lá embaixo.
+   * When it changes, scrolls the Verdict section into view. The shell
+   * increments a counter on Run, ensuring the Verdict appears even if the
+   * panel had been scrolled all the way down.
    */
   scrollToVerdictSignal?: number;
 }>) {
@@ -81,10 +81,10 @@ export function FlowInspector({
     }
   }, [scrollTopSignal]);
 
-  // Verdict envolto num div com ref para podermos rolar a seção para dentro
-  // da vista quando o run abre o painel. Não dá pra por o ref direto no
-  // `Accordion.Item` (componente de função sem `forwardRef`); o wrapper preserva
-  // o `last:border-b-0` (o Verdict continua sendo o último filho do wrapper).
+  // Verdict wrapped in a div with a ref so we can scroll the section into
+  // view when a run opens the panel. We can't put the ref directly on
+  // `Accordion.Item` (function component without `forwardRef`); the wrapper
+  // preserves `last:border-b-0` (the Verdict remains the wrapper's last child).
   const verdictRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (scrollToVerdictSignal !== undefined) {
@@ -97,6 +97,7 @@ export function FlowInspector({
 
   return (
     <aside
+      data-tour="inspector"
       className={cn(
         "h-full shrink-0 overflow-hidden border-l-2 border-wf-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-linear",
         open ? "" : "border-l-0",
@@ -125,7 +126,11 @@ export function FlowInspector({
               <NodeAttrsFormConnected />
             </Accordion.Panel>
           </Accordion.Item>
-          <Accordion.Item value="challenge" disabled={locked}>
+          <Accordion.Item
+            value="challenge"
+            disabled={locked}
+            data-tour="challenge"
+          >
             <Accordion.Header>
               <Accordion.Trigger>Challenge</Accordion.Trigger>
             </Accordion.Header>
@@ -133,9 +138,10 @@ export function FlowInspector({
               <FlowParamsFormConnected />
             </Accordion.Panel>
           </Accordion.Item>
-          {/* Verdict NÃO recebe `disabled`: no run ele é a seção ativa e deve
-              parecer normal/aberta. Fechar é impedido pela shell ignorar
-              `onValueChange` enquanto `locked` (valor controlado). */}
+          {/* The Verdict does NOT receive `disabled`: during a run it's the
+              active section and should look normal/open. Closing is prevented
+              by the shell ignoring `onValueChange` while `locked` (controlled
+              value). */}
           <div ref={verdictRef}>
             <Accordion.Item value="verdict">
               <Accordion.Header>
