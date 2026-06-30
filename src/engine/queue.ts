@@ -11,9 +11,9 @@ export function computeQueue(
     effectiveCap > 0 ? lambda / effectiveCap : Number.POSITIVE_INFINITY;
 
   if (rho >= 1) {
-    // Saturado: o nó só consegue atender até `effectiveCap`; o excedente
-    // (tudo que chega além da capacidade) é descartado. Com capacidade zero,
-    // todo o tráfego cai.
+    // Saturated: the node can only serve up to `effectiveCap`; the excess
+    // (everything arriving beyond capacity) is dropped. With zero capacity,
+    // all traffic drops.
     const dropped = effectiveCap > 0 ? lambda - effectiveCap : lambda;
     return {
       rho,

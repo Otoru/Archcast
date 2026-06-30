@@ -44,12 +44,12 @@ function downstreamAvailability(
 
   const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
 
-  // Agrupa os destinos por `kind`: destinos do MESMO kind são réplicas
-  // redundantes (qualquer uma serve → combina em paralelo); destinos de kinds
-  // DIFERENTES são dependências distintas, todas necessárias para a requisição
-  // (→ multiplica em série). Assim um load balancer → 3 app-servers continua
-  // sendo redundância, mas um app-server → db + feature-flag passa a exigir os
-  // dois — a disponibilidade do feature-flag deixa de ser mascarada pela do db.
+  // Group destinations by `kind`: destinations of the SAME kind are redundant
+  // replicas (any one serves → combined in parallel); destinations of DIFFERENT
+  // kinds are distinct dependencies, all required for the request (→ multiplied
+  // in series). Thus a load balancer → 3 app-servers remains redundancy, but an
+  // app-server → db + feature-flag now requires both — the feature-flag's
+  // availability is no longer masked by the db's.
   const branchesByKind = new Map<string, number[]>();
 
   for (const edge of outgoing) {

@@ -137,9 +137,9 @@ describe("Combobox", () => {
         </Combobox.Content>
       </Combobox>,
     );
-    // Trigger renderiza como <div role="combobox"> (não <button>) para poder
-    // aninhar os botões de Clear/ChipRemove, então o estado disabled vem por
-    // `aria-disabled`, não pelo atributo nativo `disabled`.
+    // Trigger renders as <div role="combobox"> (not <button>) so it can nest
+    // the Clear/ChipRemove buttons, therefore the disabled state comes via
+    // `aria-disabled`, not the native `disabled` attribute.
     expect(screen.getByRole("combobox")).toHaveAttribute(
       "aria-disabled",
       "true",

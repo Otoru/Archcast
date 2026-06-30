@@ -154,8 +154,8 @@ describe("findInvalidNodeIds", () => {
   });
 
   it("marca o nó-fonte de uma aresta estruturalmente inválida", () => {
-    // sql-db tem out vazio: uma aresta "read" saindo dele é estruturalmente
-    // inválida — bypass do isValidConnection (construída direto no grafo).
+    // sql-db has empty out: a "read" edge leaving it is structurally
+    // invalid — bypasses isValidConnection (built directly on the graph).
     const graph = buildGraph(
       [rfNode("db", "sql-db"), rfNode("app", "app-server")],
       [rfEdge("e1", "db", "app", "out-read", "in-read")],

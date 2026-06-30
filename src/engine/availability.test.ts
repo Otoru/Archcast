@@ -42,8 +42,8 @@ describe("availability", () => {
   });
 
   it("treats distinct-kind fan-out as series (all dependencies required)", () => {
-    // app → db (sql-db) + feature-flag: kinds diferentes, ambos necessários.
-    // A disponibilidade do feature-flag NÃO pode ser mascarada pela do db.
+    // app → db (sql-db) + feature-flag: different kinds, both required.
+    // The feature-flag availability MUST NOT be masked by the db's.
     const ff = 0.99;
     const graph = makeGraph(
       [
@@ -63,8 +63,8 @@ describe("availability", () => {
       effectiveAvailability({ availability: 0.9999, instances: 1 }) *
       effectiveAvailability({ availability: ff, instances: 1 });
 
-    // Série: ~0.9999 * 0.99 ≈ 0.9899, claramente puxado pelo feature-flag —
-    // não os ~0.9999 que o paralelo (combineParallel) daria.
+    // Series: ~0.9999 * 0.99 ≈ 0.9899, clearly pulled by the feature-flag —
+    // not the ~0.9999 that the parallel (combineParallel) would give.
     expect(computeSystemAvailability(graph)).toBeCloseTo(expected, 5);
     expect(computeSystemAvailability(graph)).toBeLessThan(0.991);
   });

@@ -11,7 +11,7 @@ import {
 import { getPreset } from "@/engine";
 import { cn } from "@/lib/utils";
 
-/** "Ponto" de porta estático para a imagem de drag — espelha o `Handle` do canvas. */
+/** Static handle "dot" for the drag image — mirrors the canvas `Handle`. */
 const plainDot: DotRenderer = (_channel, side) =>
   createElement("span", {
     "aria-hidden": true,
@@ -26,11 +26,11 @@ let previewRoot: Root | null = null;
 let previewHost: HTMLElement | null = null;
 
 /**
- * Zoom atual do viewport do canvas, publicado pelo `FlowCanvas` via
- * `onViewportChange`. A imagem de drag é escalada por esse valor para que o
- * ghost apareça no mesmo tamanho em que o nó vai ficar na tela — sem isso,
- * o zoom do canvas gera uma desorientação entre o que se arrasta e o que se
- * solta.
+ * Current canvas viewport zoom, published by `FlowCanvas` via
+ * `onViewportChange`. The drag image is scaled by this value so the ghost
+ * appears at the same size the node will have on screen — without this,
+ * the canvas zoom creates a mismatch between what is dragged and what is
+ * dropped.
  */
 let canvasZoom = 1;
 
@@ -39,20 +39,20 @@ export function setCanvasZoom(zoom: number): void {
 }
 
 /**
- * Define a imagem do drag-and-drop como o próprio nó do bloco (cabeçalho +
- * Badge da camada + portas), em vez do item da sidebar. Monta o
- * `BlockNodeShell` num host fora da tela com `createRoot` + `flushSync`
- * (render síncrono, obrigatório para o `setDragImage` durante o
- * `dragstart`) e escala o ghost pelo `zoom` atual do canvas para ele ter o
- * mesmo tamanho que o nó terá na tela. O escalonamento vai num `transform`
- * no filho (o nó) e o host — o elemento passado ao `setDragImage` — recebe
- * `width`/`height` já no tamanho escalado, sem transform: assim o snapshot
- * e o ponto de ancoragem ficam no mesmo espaço de coordenadas e o cursor
- * fica no centro do ghost em qualquer zoom (CSS `zoom` direto no elemento do
- * setDragImage desloca a ancoragem conforme o zoom em vários navegadores).
- * O host e o root permanecem vivos até `clearBlockDragImage` (chamado no
- * `dragend`) — alguns navegadores exigem o elemento no DOM durante todo o
- * arraste.
+ * Sets the drag-and-drop image as the block node itself (header + layer
+ * Badge + handles), instead of the sidebar item. Mounts the `BlockNodeShell`
+ * in an off-screen host with `createRoot` + `flushSync` (synchronous render,
+ * required for `setDragImage` during `dragstart`) and scales the ghost by the
+ * current canvas `zoom` so it has the same size the node will have on screen.
+ * The scaling goes on a `transform` on the child (the node) and the host —
+ * the element passed to `setDragImage` — receives `width`/`height` already
+ * at the scaled size, with no transform: this keeps the snapshot and the
+ * anchor point in the same coordinate space, and the cursor stays at the
+ * center of the ghost at any zoom (CSS `zoom` directly on the setDragImage
+ * element shifts the anchor depending on zoom in several browsers).
+ * The host and root stay alive until `clearBlockDragImage` (called on
+ * `dragend`) — some browsers require the element to remain in the DOM
+ * throughout the drag.
  */
 export function setBlockDragImage(
   dataTransfer: DataTransfer,
@@ -83,14 +83,14 @@ export function setBlockDragImage(
     );
   });
   const node = (host.firstElementChild as HTMLElement | null) ?? host;
-  // Mede o tamanho natural ANTES de escalonar: `transform` não altera
+  // Measure the natural size BEFORE scaling: `transform` does not change
   // `offsetWidth`/`offsetHeight`.
   const naturalW = node.offsetWidth;
   const naturalH = node.offsetHeight;
   if (canvasZoom !== 1) {
-    // Escala o conteúdo no filho; o host (passado ao setDragImage) fica com
-    // tamanho explícito já escalado e sem transform — snapshot e ancoragem
-    // no mesmo espaço de coordenadas.
+    // Scale the content on the child; the host (passed to setDragImage) gets
+    // an explicit already-scaled size and no transform — snapshot and anchor
+    // in the same coordinate space.
     node.style.transform = `scale(${canvasZoom})`;
     node.style.transformOrigin = "0 0";
     host.style.width = `${Math.round(naturalW * canvasZoom)}px`;
@@ -105,7 +105,7 @@ export function setBlockDragImage(
   previewHost = host;
 }
 
-/** Remove o host e o root da imagem de drag criados por `setBlockDragImage`. */
+/** Removes the drag image host and root created by `setBlockDragImage`. */
 export function clearBlockDragImage(): void {
   if (previewRoot) {
     previewRoot.unmount();

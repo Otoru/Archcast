@@ -52,8 +52,8 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Nó isolado — use o controle "kind" no painel de args pra trocar o bloco
- * e ver qualquer uma das 28 variações do catálogo.
+ * Isolated node — use the "kind" control in the args panel to switch the
+ * block and view any of the 28 catalog variations.
  */
 export const Single: Story = {
   args: { kind: "app-server" },
@@ -85,8 +85,8 @@ const allNodes: BlockNodeType[] = BLOCK_CATALOG.map((block, index) =>
 );
 
 /**
- * Grade com todos os blocos do catálogo lado a lado — cada configuração de
- * porta (read/write/async, assimétrica, etc.) visível de uma vez.
+ * Grid with all catalog blocks side by side — every port configuration
+ * (read/write/async, asymmetric, etc.) visible at once.
  */
 export const All: Story = {
   render: () => (
@@ -106,9 +106,9 @@ export const All: Story = {
 };
 
 /**
- * Dois nós em ciclo (A→B e B→A, canais compatíveis) — ambos acendem a borda
- * `--wf-destructive` via `InvalidNodesContext`, como no canvas real quando a
- * validação ao vivo detecta o ciclo.
+ * Two nodes in a cycle (A→B and B→A, compatible channels) — both light up
+ * the `--wf-destructive` border via `InvalidNodesContext`, just like the real
+ * canvas when live validation detects the cycle.
  */
 export const Invalid: Story = {
   render: () => (

@@ -31,11 +31,11 @@ export interface SimulationResult {
 }
 
 /**
- * p99 empírico ponderado por requisições: cada tick contribui com
- * `arrivalsRps * tickSec` amostras de valor `endToEndLatency`. O tick de burst
- * (mais arrivals + latência alta) domina a cauda corretamente. Ticks com
- * latência `Infinity` (caminho síncrono saturado) ficam no topo; se somam >1%
- * do peso, o p99 é `Infinity` → violação de latency (desejado).
+ * Request-weighted empirical p99: each tick contributes
+ * `arrivalsRps * tickSec` samples of value `endToEndLatency`. The burst tick
+ * (more arrivals + high latency) dominates the tail correctly. Ticks with
+ * `Infinity` latency (saturated synchronous path) sit at the top; if they sum
+ * to >1% of the weight, the p99 is `Infinity` → latency violation (intended).
  */
 function weightedP99Latency(ticks: TickResult[], tickSec: number): number {
   const samples: Array<{ value: number; weight: number }> = [];
@@ -58,7 +58,7 @@ function weightedP99Latency(ticks: TickResult[], tickSec: number): number {
       return sample.value;
     }
   }
-  // `samples` é não-vazio (guarda acima), então `.at(-1)` nunca é undefined.
+  // `samples` is non-empty (guard above), so `.at(-1)` is never undefined.
   return (samples.at(-1) as (typeof samples)[number]).value;
 }
 
@@ -70,10 +70,10 @@ interface TickAccumulators {
 }
 
 /**
- * Acumula os resultados de um tick nos agregados cross-tick (saturação,
- * ratelimit, pico de provisionamento, snapshots de backlog) e devolve o
- * backlog do tick (usado como estado inicial do próximo). Extraído de
- * `simulate` para manter a complexidade cognitiva sob controle.
+ * Accumulates a tick's results into the cross-tick aggregates (saturation,
+ * rate-limiting, peak provisioning, backlog snapshots) and returns the tick's
+ * backlog (used as the next tick's initial state). Extracted from `simulate`
+ * to keep cognitive complexity under control.
  */
 function accumulateTick(
   nodeResults: Record<string, NodeResult>,
@@ -104,9 +104,9 @@ function accumulateTick(
 }
 
 /**
- * Event-loop: percorre o profile tick a tick, reusando `propagate` por tick
- * com estado de backlog cross-tick. Sem warm-up (backlog inicial 0 = sistema
- * frio). Determinístico (profile é função de t, sem rng).
+ * Event loop: walks the profile tick by tick, reusing `propagate` per tick
+ * with cross-tick backlog state. No warm-up (initial backlog 0 = cold system).
+ * Deterministic (profile is a function of t, no rng).
  */
 export function simulate(
   graph: Graph,

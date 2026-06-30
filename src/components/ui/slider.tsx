@@ -7,12 +7,12 @@ import { cn } from "@/lib/utils";
 type SliderRootProps = SliderPrimitive.Root.Props<number>;
 
 /**
- * Slider base-ui (single-thumb). O `value`/`onValueChange` operam sobre um
- * número único (`Props<number>`). A geometria (posição do thumb e largura do
- * indicator) é controlada pelo base-ui via estilos inline — aqui só damos a
- * aparência wireframe (`wf-*`). O `Slider.Control` é `relative` para ancorar o
- * thumb absoluto; o `Slider.Track` é o trilho e o `Slider.Indicator` o trecho
- * preenchido.
+ * base-ui slider (single-thumb). `value`/`onValueChange` operate on a single
+ * number (`Props<number>`). The geometry (thumb position and indicator width)
+ * is controlled by base-ui via inline styles — here we only provide the
+ * wireframe look (`wf-*`). `Slider.Control` is `relative` to anchor the
+ * absolute thumb; `Slider.Track` is the rail and `Slider.Indicator` is the
+ * filled portion.
  */
 function SliderRoot({ className, ...props }: Readonly<SliderRootProps>) {
   return (

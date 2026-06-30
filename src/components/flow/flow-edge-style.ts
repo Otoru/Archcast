@@ -1,7 +1,7 @@
 /**
- * Cor neutra da edge por faixa de magnitude do fluxo (não-saturada). Pura, sem
- * dependência do React Flow — separada de `flow-edge.tsx` para ser testável
- * sem montar o canvas.
+ * Neutral edge color by flow magnitude band (non-saturated). Pure, with no
+ * React Flow dependency — separated from `flow-edge.tsx` so it can be tested
+ * without mounting the canvas.
  */
 export function strokeByMagnitude(magnitude: number): string {
   if (magnitude < 0.33) {

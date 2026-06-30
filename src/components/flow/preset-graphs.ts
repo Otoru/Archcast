@@ -26,7 +26,7 @@ type PresetEdge = {
   targetHandle: string;
 };
 
-/** Monta um nó de preset: attrs mesclados vazios por padrão (defaults do preset valem). */
+/** Builds a preset node: empty merged attrs by default (preset defaults apply). */
 function n(
   id: string,
   kind: string,
@@ -37,7 +37,7 @@ function n(
   return { id, kind, attrs, position: { x, y } };
 }
 
-/** Aresta de preset entre portas de um mesmo canal: `out-${channel}` → `in-${channel}`. */
+/** Preset edge between handles of the same channel: `out-${channel}` → `in-${channel}`. */
 function e(
   id: string,
   source: string,
@@ -119,16 +119,16 @@ const CACHE_ASIDE = doc(
 );
 
 /**
- * RAG / AI assistant: leitura segue `web-client → api-gateway → app-server →
- * LLM → vector-db` (o LLM recupera contexto do banco vetorial antes de
- * responder); a escrita faz a ingestão de embeddings direto `app-server →
- * vector-db`. Workload de IA é baixo volume + latência alta, então o desafio
- * declara SLO próprio (20 rps / p99 5s) — não o padrão de 1000 rps/200ms. O
- * LLM é uma frota de inferência auto-hospedada (não-elástica): capacity baixo
- * satura rápido, e como o upstream imediato é o `app-server` (não um
- * distribuidor), `instances` só levanta disponibilidade — a capacidade fica no
- * limite de uma instância, exercitando o gargalo de inferência. Tiers
- * replicados (instances≥2) eliminam SPOFs no path único.
+ * RAG / AI assistant: reads follow `web-client → api-gateway → app-server →
+ * LLM → vector-db` (the LLM retrieves context from the vector database before
+ * responding); writes ingest embeddings directly `app-server → vector-db`. AI
+ * workloads are low volume + high latency, so the challenge declares its own
+ * SLO (20 rps / p99 5s) — not the default 1000 rps/200ms. The LLM is a
+ * self-hosted (non-elastic) inference fleet: low capacity saturates quickly,
+ * and since the immediate upstream is the `app-server` (not a dispatcher),
+ * `instances` only raises availability — capacity stays at the single-instance
+ * limit, exercising the inference bottleneck. Replicated tiers (instances≥2)
+ * eliminate SPOFs in the single path.
  */
 const RAG = doc(
   [
@@ -157,16 +157,16 @@ const RAG = doc(
 );
 
 /**
- * Grafos iniciais prontos pra carregar (menu Presets). Cada um exercita um
- * padrão e representa uma topologia de produção sadia que PASSA o desafio do
- * próprio `doc.params` (por padrão 1000 rps / SLO 200ms p99 / 99,9%
- * disponibilidade; o RAG usa SLO de IA): tiers stateless replicados
- * (instances≥2) eliminam SPOFs e sustentam a disponibilidade em série.
- * E-commerce (CDN com origin em object storage, API gateway+cache+DB),
- * Queue+Workers (escrita assíncrona via fila drenando pra workers + leitura
- * síncrona direta), Cache-aside (Cache `absorber-aside` com hitRatio 0.85 — a
- * maior parte da leitura é absorvida pelo cache e só os misses chegam ao DB —
- * mais caminho de escrita direto), RAG (LLM + vector-db com SLO de IA).
+ * Ready-to-load starter graphs (Presets menu). Each exercises a pattern and
+ * represents a healthy production topology that PASSES its own `doc.params`
+ * challenge (by default 1000 rps / 200ms p99 SLO / 99.9% availability; RAG
+ * uses an AI SLO): replicated stateless tiers (instances≥2) eliminate SPOFs
+ * and sustain availability in series.
+ * E-commerce (CDN with origin in object storage, API gateway+cache+DB),
+ * Queue+Workers (async write via a queue draining to workers + direct
+ * synchronous read), Cache-aside (Cache `absorber-aside` with hitRatio 0.85 —
+ * most reads are absorbed by the cache and only misses reach the DB — plus a
+ * direct write path), RAG (LLM + vector-db with an AI SLO).
  */
 export const PRESET_GRAPHS: PresetGraph[] = [
   { id: "ecommerce", title: "E-commerce", doc: ECOMMERCE },

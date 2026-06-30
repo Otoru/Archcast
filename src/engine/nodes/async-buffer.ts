@@ -7,16 +7,16 @@ import type {
 } from "@/engine/types";
 
 /**
- * async-buffer = fila/mensageria.
+ * async-buffer = queue/messaging.
  *
- * - Steady (sem `tickState`): modelo instantâneo M/M/1-like — satura quando
- *   `rho >= 1` e o backlog excede `maxDepth`. Não emite `outboundFlow`, então
- *   o fluxo é repassado integro (comportamento legado, byte-identical).
- * - Event-loop (com `tickState`): carrega o backlog entre ticks, drena a
- *   `effectiveDrain` por tick e emite `outboundFlow = drained` adiante — ou
- *   seja, o downstream enxerga a drainRate (média), não o burst. Satura quando
- *   o backlog acumulado excede `maxDepth`. `latency: 0` mantém o caminho async
- *   fora da cadeia de latência síncrona.
+ * - Steady (no `tickState`): instant M/M/1-like model — saturates when
+ *   `rho >= 1` and backlog exceeds `maxDepth`. Does not emit `outboundFlow`, so
+ *   the flow is forwarded in full (legacy behavior, byte-identical).
+ * - Event-loop (with `tickState`): carries backlog across ticks, drains
+ *   `effectiveDrain` per tick and emits `outboundFlow = drained` downstream —
+ *   that is, downstream sees the drainRate (average), not the burst. Saturates
+ *   when accumulated backlog exceeds `maxDepth`. `latency: 0` keeps the async
+ *   path out of the synchronous latency chain.
  */
 export const asyncBufferHandler: PrimitiveHandler = {
   primitive: "async-buffer",

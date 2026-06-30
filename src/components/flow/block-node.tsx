@@ -38,21 +38,21 @@ export type BlockNodeData = { kind: string; attrs?: Record<string, number> };
 export type BlockNode = Node<BlockNodeData, "block">;
 
 /**
- * Conjunto de ids de nós atualmente inválidos (em ciclo, ou fonte de aresta
- * estruturalmente inválida). O `FlowCanvas` publica o conjunto derivado da
- * validação ao vivo e cada `BlockNode` o consome para acender a borda
- * `--wf-destructive` — sem mutar `data`, evitando loop de effect. Default
- * vazio para o fantasma de drag e para stories isolados.
+ * Set of ids of currently invalid nodes (in a cycle, or the source of a
+ * structurally invalid edge). `FlowCanvas` publishes the set derived from live
+ * validation and each `BlockNode` consumes it to light up the
+ * `--wf-destructive` border — without mutating `data`, avoiding an effect
+ * loop. Empty default for the drag ghost and for isolated stories.
  */
 export const InvalidNodesContext = createContext<Set<string>>(
   new Set<string>(),
 );
 
 /**
- * Estado visual de uma edge durante o run: magnitude normalizada (0–1) do
- * fluxo que ela carrega (relativo ao pico do grafo), se o nó de origem está
- * saturado (edge "quente" → wf-destructive) e o fluxo absoluto para escalar
- * a espessura.
+ * Visual state of an edge during a run: normalized magnitude (0–1) of the
+ * flow it carries (relative to the graph peak), whether the source node is
+ * saturated ("hot" edge → wf-destructive) and the absolute flow to scale
+ * the thickness.
  */
 export type RunEdgeState = {
   magnitude: number;
@@ -61,13 +61,14 @@ export type RunEdgeState = {
 };
 
 /**
- * Estado de run publicado pelo `FlowCanvas` e consumido por cada `BlockNode` e
- * pela edge custom (`FlowEdge`): se o modo run está ativo (lock + animação),
- * se há veredito (running OU congelado pós-stop), o id do bottleneck (max ρ),
- * o conjunto de nós saturados e o estado por edge. Derivação pura do veredito
- * — sem mutar `data`, evitando loop de effect (mesmo padrão do
- * `InvalidNodesContext`). Default seguro para o fantasma de drag e stories
- * isolados (sem provider, nada destacado, nada animado).
+ * Run state published by `FlowCanvas` and consumed by each `BlockNode` and
+ * by the custom edge (`FlowEdge`): whether run mode is active (lock +
+ * animation), whether there is a verdict (running OR frozen post-stop), the
+ * bottleneck id (max ρ), the set of saturated nodes and the per-edge state.
+ * Pure derivation from the verdict — no `data` mutation, avoiding an effect
+ * loop (same pattern as `InvalidNodesContext`). Safe default for the drag
+ * ghost and isolated stories (no provider, nothing highlighted, nothing
+ * animated).
  */
 export type RunState = {
   running: boolean;
@@ -104,25 +105,25 @@ export const HANDLE_CLASS =
   "!size-2.5 !rounded-full !border-2 !border-wf-border !bg-wf-surface";
 
 /**
- * Número máximo de cartões-fantasma renderizados atrás do nó para sugerir
- * empilhamento. Além disso o selo `×N` carrega o valor exato — pilhas maiores
- * ficariam visualmente grotescas (offset cumulativo grande) sem ganho de clareza.
+ * Maximum number of ghost cards rendered behind the node to suggest stacking.
+ * Beyond that the `×N` badge carries the exact value — larger stacks would
+ * look visually grotesque (large cumulative offset) with no clarity gain.
  */
 const MAX_STACK_GHOSTS = 2;
-/** Deslocamento (px) de cada cartão-fantasma em relação ao anterior. */
+/** Offset (px) of each ghost card relative to the previous one. */
 const STACK_OFFSET_PX = 6;
 
-/** Renderiza o "ponto" de uma porta — `Handle` real no canvas, span estático na imagem de drag. */
+/** Renders a port "dot" — real `Handle` on the canvas, static span in the drag image. */
 export type DotRenderer = (
   channel: EdgeChannel,
   side: "in" | "out",
 ) => ReactNode;
 
 /**
- * Borda dos cartões-fantasma da pilha. Mesma cor do estado do cartão
- * principal, EXCETO no bottleneck, onde o traço foco cai para 1px (`border`)
- * — o preto 2px em cada card da pilha ficava pesado. Prioridade mutuamente
- * exclusiva: (invalid|saturated) > bottleneck > selected > neutro.
+ * Border of the stack's ghost cards. Same color as the main card's state,
+ * EXCEPT on the bottleneck, where the focus stroke drops to 1px (`border`)
+ * — the 2px black on every card of the stack felt heavy. Mutually exclusive
+ * priority: (invalid|saturated) > bottleneck > selected > neutral.
  */
 function ghostBorderClassFor(state: {
   invalid: boolean;
@@ -143,11 +144,11 @@ function ghostBorderClassFor(state: {
 }
 
 /**
- * Corpo visual do nó, sem dependência de React Flow: ícone da camada +
- * rótulo do bloco + Badge da camada + uma linha por porta (read/write/async).
- * O "ponto" de cada porta vem de `renderDot` — `Handle` no canvas, span
- * estático na imagem de drag — mantendo uma fonte visual única entre o nó
- * real e o ghost do drag-and-drop.
+ * Visual body of the node, with no React Flow dependency: layer icon +
+ * block label + layer Badge + one row per port (read/write/async). The "dot"
+ * of each port comes from `renderDot` — `Handle` on the canvas, static span
+ * in the drag image — keeping a single visual source between the real node
+ * and the drag-and-drop ghost.
  */
 export function BlockNodeShell({
   preset,
@@ -167,33 +168,33 @@ export function BlockNodeShell({
   renderDot: DotRenderer;
   selected?: boolean;
   invalid?: boolean;
-  /** Destaque do bottleneck (max ρ): borda foco. Permanece no veredito congelado. */
+  /** Bottleneck highlight (max ρ): focus border. Persists in the frozen verdict. */
   bottleneck?: boolean;
-  /** Pulso do bottleneck: só anima com o run ativo (para de piscar no Stop). */
+  /** Bottleneck pulse: only animates with an active run (stops flashing on Stop). */
   bottleneckPulse?: boolean;
-  /** Node saturado (ρ ≥ 1) durante o run — borda vermelha. */
+  /** Saturated node (ρ ≥ 1) during a run — red border. */
   saturated?: boolean;
-  /** Pisca o node saturado em vermelho: só anima com o run ativo (para no Stop). */
+  /** Flashes the saturated node red: only animates with an active run (stops on Stop). */
   saturatedPulse?: boolean;
-  /** Cópias paralelas do bloco (`instances`). >1 ativa o empilhamento visual. */
+  /** Parallel copies of the block (`instances`). >1 enables the visual stacking. */
   instances?: number;
-  /** Quando presente, mostra um X no canto superior direito que apaga o nó. */
+  /** When present, shows an X in the top-right corner that deletes the node. */
   onDelete?: (event: MouseEvent<HTMLButtonElement>) => void;
 }>) {
   const Icon = meta.icon;
   const ins = preset.edges.in;
   const outs = preset.edges.out;
   const hasPorts = ins.length > 0 || outs.length > 0;
-  // Empilhamento: nº de cartões-fantasma atrás do nó (cap em MAX_STACK_GHOSTS).
+  // Stacking: number of ghost cards behind the node (capped at MAX_STACK_GHOSTS).
   const ghostCount = Math.max(0, Math.min(instances - 1, MAX_STACK_GHOSTS));
   const showStack = ghostCount > 0;
 
-  // Borda/anel do estado atual (prioridade mutuamente exclusiva, para não
-  // depender da ordem do CSS gerado): invalid > saturated > bottleneck >
-  // selected. Aplicada ao cartão principal. Compartilhada com os fantasmas
-  // (exceto no bottleneck — ver `ghostBorderClass`) para a pilha inteira
-  // pintar o estado de run em vez de só o topo. `invalid` só fora do run;
-  // `saturated`/`bottleneck` só no run.
+  // Border/ring of the current state (mutually exclusive priority, so it does
+  // not depend on generated CSS order): invalid > saturated > bottleneck >
+  // selected. Applied to the main card. Shared with the ghosts (except on the
+  // bottleneck — see `ghostBorderClass`) so the whole stack paints the run
+  // state instead of only the top. `invalid` only outside a run;
+  // `saturated`/`bottleneck` only during a run.
   const stateBorderClass = cn(
     selected &&
       !invalid &&
@@ -204,21 +205,22 @@ export function BlockNodeShell({
     saturated && !invalid && "border-wf-destructive ring-wf-destructive",
     invalid && "border-wf-destructive ring-wf-destructive",
   );
-  // Borda dos fantasmas: mesma cor do estado, EXCETO no bottleneck, onde o
-  // traço foco cai para 1px (`border`) — o preto 2px em cada card da pilha
-  // ficava pesado/feio. Ternário em vez de camadas para emitir só um par
-  // width+color (evita conflito `border`/`border-2` decidido por ordem de
-  // CSS). Saturated/invalid/selected seguem o cartão principal (vermelho/foco
-  // em 2px — o vermelho é alarme e não incomora).
+  // Ghost border: same color as the state, EXCEPT on the bottleneck, where the
+  // focus stroke drops to 1px (`border`) — the 2px black on every card of the
+  // stack looked heavy/ugly. Ternary instead of layers to emit a single
+  // width+color pair (avoids `border`/`border-2` conflict decided by CSS
+  // order). Saturated/invalid/selected follow the main card (red/focus at
+  // 2px — red is an alarm and not bothersome).
   const ghostBorderClass = ghostBorderClassFor({
     invalid,
     saturated,
     bottleneck,
     selected,
   });
-  // Pulso (animação do anel) só no cartão principal: replicate em todos os
-  // fantasmas viraria ruído visual (vários anéis pulsando defasados pelo
-  // offset). A borda colorida já cobre a pilha inteira; o topo pisca.
+  // Pulse (ring animation) only on the main card: replicating it across all
+  // ghosts would become visual noise (several rings pulsing out of phase due
+  // to the offset). The colored border already covers the whole stack; only
+  // the top flashes.
   const pulseClass = cn(
     bottleneckPulse && !saturated && "wf-bottleneck-pulse",
     saturatedPulse && "wf-saturated-pulse",
@@ -228,10 +230,11 @@ export function BlockNodeShell({
     <div className="relative">
       {showStack
         ? Array.from({ length: ghostCount }, (_, k) => {
-            // Ordem DECRESCENTE de offset: o fantasma mais afastado entra
-            // primeiro no DOM e fica por baixo; o mais próximo (offset menor)
-            // entra por último e pinta por cima — formando a cascata correta
-            // (sem isso, o fantasma de offset maior cobre o menor e some um card).
+            // DESCENDING offset order: the farthest ghost enters the DOM first
+            // and stays at the bottom; the closest one (smaller offset) enters
+            // last and paints on top — forming the correct cascade (without
+            // this, the larger-offset ghost covers the smaller one and a card
+            // disappears).
             const offset = (ghostCount - k) * STACK_OFFSET_PX;
             return (
               <div
@@ -260,7 +263,7 @@ export function BlockNodeShell({
             type="button"
             aria-label={`Delete ${preset.label}`}
             onClick={onDelete}
-            // nodrag: impede o RF de iniciar o arraste do nó ao clicar no X.
+            // nodrag: prevents RF from starting a node drag when clicking the X.
             className="nodrag absolute -right-2 -top-2 z-10 inline-flex size-5 cursor-pointer items-center justify-center rounded-full border-2 border-wf-border bg-wf-surface text-wf-ink-soft shadow-sm transition-colors hover:border-wf-destructive hover:text-wf-destructive focus-visible:ring-2 focus-visible:ring-wf-focus"
           >
             <X className="size-3" aria-hidden="true" />
@@ -323,13 +326,13 @@ export function BlockNodeShell({
 }
 
 /**
- * Único nó de canvas do workflow: deriva tudo (rótulo, camada, ícone,
- * portas) do preset do bloco recebido em `data.kind`. Cada canal em
- * `preset.edges.in`/`out` vira uma "porta" — uma linha com o Handle na
- * borda do nó e o rótulo do canal (read/write/async) ao lado, indicando
- * visualmente quais conexões aquele ponto aceita. O `id` do handle
- * codifica o canal (`in-read`, `out-write`, `out-async`...) para casar com
- * arestas por `EdgeChannel` no futuro.
+ * The workflow's single canvas node: derives everything (label, layer, icon,
+ * ports) from the block preset received in `data.kind`. Each channel in
+ * `preset.edges.in`/`out` becomes a "port" — a row with the Handle on the
+ * node border and the channel label (read/write/async) next to it, visually
+ * indicating which connections that point accepts. The handle `id` encodes
+ * the channel (`in-read`, `out-write`, `out-async`...) to match edges by
+ * `EdgeChannel` in the future.
  */
 export function BlockNode({ id, data, selected }: NodeProps<BlockNode>) {
   const invalid = useContext(InvalidNodesContext).has(id);
@@ -350,17 +353,17 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNode>) {
   }
 
   const meta = LAYER_META[preset.layer];
-  // Mesmo fallback do inspector (`node-attrs-form.tsx`): override do nó →
-  // default do preset → constante. Client-layer não expõe instances, mas o
-  // fallback resolve 1 e nada do empilhamento é renderizado.
+  // Same fallback as the inspector (`node-attrs-form.tsx`): node override →
+  // preset default → constant. Client-layer does not expose instances, but
+  // the fallback resolves 1 and no stacking is rendered.
   const instances =
     data.attrs?.instances ?? preset.defaults.instances ?? DEFAULT_INSTANCES;
-  // Destaques do modo run. O alarme de saturação (ρ ≥ 1) é vermelho e piscando,
-  // e existe SÓ enquanto o run está ativo — ao apertar Stop o vermelho some
-  // (não fica congelado, ao contrário do bottleneck). `saturated` vence sobre
-  // `bottleneck` (max ρ): um nó saturado pisca em vermelho; o bottleneck ainda
-  // não saturado recebe a borda foco (que permanece no veredito congelado) e o
-  // pulso suave (que para no Stop).
+  // Run-mode highlights. The saturation alarm (ρ ≥ 1) is red and flashing,
+  // and exists ONLY while the run is active — on Stop the red disappears
+  // (not frozen, unlike the bottleneck). `saturated` wins over `bottleneck`
+  // (max ρ): a saturated node flashes red; the bottleneck that is not yet
+  // saturated gets the focus border (which persists in the frozen verdict)
+  // and the soft pulse (which stops on Stop).
   const bottleneck = runState.hasVerdict && runState.bottleneckId === id;
   const saturated = runState.running && runState.saturatedNodeIds.has(id);
   const bottleneckPulse = runState.running && bottleneck && !saturated;
@@ -395,14 +398,14 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNode>) {
       saturated={saturated}
       saturatedPulse={saturatedPulse}
       instances={instances}
-      // Durante o run a estrutura está travada — esconde o botão de apagar.
+      // During a run the structure is locked — hide the delete button.
       onDelete={
         runState.running
           ? undefined
           : (event) => {
               event.stopPropagation();
               deleteElements({ nodes: [{ id }] }).catch(() => {
-                // RF rejeita só se o nó já sumiu — sem ação necessária.
+                // RF rejects only if the node is already gone — no action needed.
               });
             }
       }

@@ -9,9 +9,9 @@ import { Slider } from "@/components/ui/slider";
 import type { ChallengeParams } from "@/engine";
 
 /**
- * Campo de razão (0–1) como slider com label de valor ao vivo em porcentagem
- * (ex.: 0.7 → "70%"). `step` e `decimals` acomodam a granularidade de cada
- * ratio (read/write 0.05, availability SLO 0.0001).
+ * Ratio field (0–1) as a slider with a live percentage value label
+ * (e.g. 0.7 → "70%"). `step` and `decimals` accommodate each ratio's
+ * granularity (read/write 0.05, availability SLO 0.0001).
  */
 function RatioField({
   id,
@@ -75,10 +75,10 @@ export function FlowParamsForm({
   params: ChallengeParams;
   onChange: (next: ChallengeParams) => void;
   /**
-   * Desabilita todos os campos — usado pelo `FlowParamsFormConnected` para
-   * travar os Challenge params durante o modo run (só attrs de nodes são
-   * editáveis). Base UI (Slider/Combobox) não honra `disabled` herdado de
-   * fieldset, por isso repassamos explicitamente a cada control.
+   * Disables all fields — used by `FlowParamsFormConnected` to lock the
+   * Challenge params during run mode (only node attrs are editable). Base UI
+   * (Slider/Combobox) does not honor `disabled` inherited from a fieldset, so
+   * we pass it through explicitly to each control.
    */
   disabled?: boolean;
 }>) {
@@ -196,7 +196,7 @@ export function FlowParamsForm({
   );
 }
 
-/** Conectado ao `FlowEditorProvider`: lê/escreve `params`. Fica desabilitado durante o modo run. */
+/** Connected to `FlowEditorProvider`: reads/writes `params`. Disabled during run mode. */
 export function FlowParamsFormConnected() {
   const { params, setParams, running } = useFlowEditor();
   return (

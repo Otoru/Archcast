@@ -37,12 +37,12 @@ import {
 
 const nodeTypes = { block: BlockNode };
 const edgeTypes = { wf: FlowEdge };
-// Origem do nó no centro: a `position` vira o centro do nó (não o top-left),
-// então o nó solta com o cursor no meio — igual ao ghost do drag.
+// Node origin at the center: `position` becomes the node center (not top-left),
+// so the node drops with the cursor in the middle — matching the drag ghost.
 const NODE_ORIGIN: NodeOrigin = [0.5, 0.5];
-// Viewport inicial em zoom 1:1. Sem `fitView` no canvas vazio: o RF adia o
-// fit inicial e, ao soltar o primeiro nó, enquadraria esse único nó dando um
-// zoom abrupto. Fixar zoom 1 mantém o tamanho previsível desde o início.
+// Initial viewport at 1:1 zoom. No `fitView` on an empty canvas: RF defers the
+// initial fit and, when the first node is dropped, would frame that single
+// node causing an abrupt zoom. Pinning zoom 1 keeps the size predictable from the start.
 const DEFAULT_VIEWPORT: Viewport = { x: 0, y: 0, zoom: 1 };
 
 function FlowInner() {
@@ -52,10 +52,10 @@ function FlowInner() {
     BlockNodeType,
     Edge
   >();
-  // Estado do editor (nodes/edges/seleção) vive no `FlowEditorProvider` da
-  // shell — assim o inspector e o botão Run enxergam o mesmo grafo. Os
-  // handlers de change são repassados direto ao `<ReactFlow>`; `getNode`
-  // segue do store do RF (`useReactFlow`), evitando closure stale.
+  // Editor state (nodes/edges/selection) lives in the shell's
+  // `FlowEditorProvider` — so the inspector and the Run button see the same
+  // graph. Change handlers are forwarded straight to `<ReactFlow>`; `getNode`
+  // comes from the RF store (`useReactFlow`), avoiding stale closures.
   const {
     nodes,
     setNodes,
@@ -70,9 +70,9 @@ function FlowInner() {
     fitViewSignal,
   } = useFlowEditor();
 
-  // Publica o zoom atual do canvas no store da imagem de drag, para o ghost
-  // aparecer no mesmo tamanho do nó na tela. Inicial no mount + atualizado a
-  // cada mudança de viewport (pan/zoom/fitView).
+  // Publishes the current canvas zoom to the drag-image store, so the ghost
+  // appears at the same size as the node on screen. Set on mount + updated on
+  // every viewport change (pan/zoom/fitView).
   useEffect(() => {
     setCanvasZoom(getViewport().zoom ?? 1);
   }, [getViewport]);
@@ -80,10 +80,10 @@ function FlowInner() {
     setCanvasZoom(viewport.zoom ?? 1);
   }, []);
 
-  // Cria a aresta ao soltar uma conexão entre handles. O canal fica
-  // codificado nos `sourceHandle`/`targetHandle` (`out-read` → `in-read`);
-  // `addEdge` dedupe por par de handles. Travado durante o run (`nodesConnect
-  // able` já bloqueia o arraste; o guard é rede de segurança).
+  // Creates the edge when a connection between handles is dropped. The channel
+  // is encoded in `sourceHandle`/`targetHandle` (`out-read` → `in-read`);
+  // `addEdge` dedupes by handle pair. Locked during a run (`nodesConnectable`
+  // already blocks the drag; this guard is a safety net).
   const onConnect = useCallback(
     (connection: Connection) => {
       if (running) {
@@ -94,40 +94,41 @@ function FlowInner() {
     [running, setEdges],
   );
 
-  // Recusa o drop de conexões inválidas já no arraste (canal incompatível,
-  // self-loop, preset sem o canal) — a linha de conexão fica vermelha e a
-  // aresta não chega a ser criada. `getNode` vem do store do RF, evitando
-  // closure stale sobre os nós.
+  // Rejects dropping invalid connections during the drag (incompatible
+  // channel, self-loop, preset without the channel) — the connection line
+  // turns red and the edge is never created. `getNode` comes from the RF
+  // store, avoiding stale closures over nodes.
   const isValidConnection = useCallback(
     (connection: Connection | Edge) => isConnectionValid(connection, getNode),
     [getNode],
   );
 
-  // Validação ao vivo: deriva o conjunto de nós inválidos (em ciclo, ou fonte
-  // de aresta estruturalmente inválida) do grafo do motor — pura, sem mutar
-  // estado, então não há loop de effect. Recomputado a cada connect/move/
-  // delete e entregue aos nós via `InvalidNodesContext`.
+  // Live validation: derives the set of invalid nodes (in a cycle, or the
+  // source of a structurally invalid edge) from the engine graph — pure, no
+  // state mutation, so there is no effect loop. Recomputed on every connect/
+  // move/delete and delivered to nodes via `InvalidNodesContext`.
   const invalidNodeIds = useMemo(
     () => findInvalidNodeIds(buildGraph(nodes, edges)),
     [nodes, edges],
   );
 
-  // Estado de run (bottleneck, saturados, estado das edges) derivado do
-  // veredito — pura, sem mutar `data`, mesma filosofia do `invalidNodeIds`.
-  // Publicado via `RunStateContext` para os nós (destaque) e a edge custom
-  // (cor/animação). Recomputado a cada mudança de veredito (recálculo ao vivo
-  // do provider) ou de grafo.
+  // Run state (bottleneck, saturated nodes, edge state) derived from the
+  // verdict — pure, no `data` mutation, same philosophy as `invalidNodeIds`.
+  // Published via `RunStateContext` to nodes (highlight) and the custom edge
+  // (color/animation). Recomputed on every verdict change (live recalculation
+  // in the provider) or graph change.
   const runState = useMemo(
     () => deriveRunState(verdict, nodes, edges, running),
     [verdict, nodes, edges, running],
   );
 
-  // Ao entrar no run, limpa a seleção do RF (anel `selected`). Como
-  // `elementsSelectable={!running}`, o RF não troca mais a seleção durante o
-  // run, e clicar um nó (via `onNodeClick`) mudaria só o inspector — deixando
-  // o anel congelado no nó antigo, fora de sincronia. Limpar na entrada deixa
-  // o canvas sem anel durante o run (o inspector indica o nó ativo). `selected`
-  // não entra na `runSignature`, então não dispara recálculo.
+  // On entering a run, clear the RF selection (`selected` ring). Since
+  // `elementsSelectable={!running}`, RF no longer changes the selection during
+  // the run, and clicking a node (via `onNodeClick`) would only update the
+  // inspector — leaving the ring frozen on the old node, out of sync. Clearing
+  // on entry leaves the canvas ring-free during the run (the inspector indicates
+  // the active node). `selected` is not part of `runSignature`, so this does
+  // not trigger recalculation.
   useEffect(() => {
     if (!running) return;
     setNodes((current) =>
@@ -137,10 +138,10 @@ function FlowInner() {
     );
   }, [running, setNodes]);
 
-  // `fitViewSignal` sobe do `FlowEditorProvider` (toolbar/shell) — a toolbar
-  // está fora do `ReactFlowProvider`, então ela não pode chamar `fitView`
-  // diretamente; incrementa o sinal e o canvas (dentro do provider) enquadra.
-  // Pula o sinal inicial 0 pra não re-enquadrar no mount.
+  // `fitViewSignal` rises from the `FlowEditorProvider` (toolbar/shell) — the
+  // toolbar is outside the `ReactFlowProvider`, so it cannot call `fitView`
+  // directly; it increments the signal and the canvas (inside the provider) fits.
+  // Skips the initial 0 signal to avoid re-framing on mount.
   useEffect(() => {
     if (fitViewSignal <= 0) return;
     fitView({ duration: 200 });
@@ -177,9 +178,9 @@ function FlowInner() {
     [running, screenToFlowPosition, setNodes],
   );
 
-  // Ctrl/Cmd+A seleciona todos os nós. O RF não traz esse atalho nativo, então
-  // marcamos `selected: true` em todos. Ignora quando o foco está num campo de
-  // texto (deixa o Ctrl+A selecionar o texto, não os nós).
+  // Ctrl/Cmd+A selects all nodes. RF does not provide this shortcut natively,
+  // so we mark `selected: true` on all of them. Skipped when focus is in a text
+  // field (let Ctrl+A select the text, not the nodes).
   const onKeyDown = useCallback(
     (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {
@@ -207,7 +208,7 @@ function FlowInner() {
   }, [onKeyDown]);
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: zona de drop do canvas (drag-and-drop, não é widget de teclado)
+    // biome-ignore lint/a11y/noStaticElementInteractions: canvas drop zone (drag-and-drop, not a keyboard widget)
     <div className="h-full w-full" onDragOver={onDragOver} onDrop={onDrop}>
       <InvalidNodesContext.Provider value={invalidNodeIds}>
         <RunStateContext.Provider value={runState}>
@@ -221,19 +222,20 @@ function FlowInner() {
               setSelectedNodeId(selected.length === 1 ? selected[0].id : null)
             }
             onNodeClick={(_event, node) => {
-              // Dispara a cada clique (mesmo no nó já selecionado) para a shell
-              // reabrir/rolar o inspector na seção de atributos — `onSelection
-              // Change` não basta porque reclicar o mesmo nó não muda a seleção.
+              // Fires on every click (even on an already-selected node) so the
+              // shell reopens/scrolls the inspector to the attributes section —
+              // `onSelectionChange` is not enough because re-clicking the same
+              // node does not change the selection.
               setSelectedNodeId(node.id);
               notifyNodeClick();
             }}
             isValidConnection={isValidConnection}
-            // Modo run trava a estrutura: sem arrastar nodes, sem iniciar
-            // conexões, sem apagar por teclado, sem selecionar. O cadeado do
-            // `<Controls>` reflete `isInteractive = nodesDraggable ||
-            // nodesConnectable || elementsSelectable` — travar os três fecha o
-            // cadeado (LockIcon). A seleção para o inspector continua via
-            // `onNodeClick` (não depende de `elementsSelectable`).
+            // Run mode locks the structure: no dragging nodes, no starting
+            // connections, no keyboard deletion, no selection. The `<Controls>`
+            // padlock reflects `isInteractive = nodesDraggable ||
+            // nodesConnectable || elementsSelectable` — locking all three
+            // closes the padlock (LockIcon). Selection for the inspector
+            // continues via `onNodeClick` (does not depend on `elementsSelectable`).
             nodesDraggable={!running}
             nodesConnectable={!running}
             elementsSelectable={!running}
@@ -259,10 +261,10 @@ function FlowInner() {
 }
 
 /**
- * Canvas React Flow em tela cheia com drag-and-drop da sidebar: arrasta um
- * bloco do catálogo e solta no canvas para criar um nó daquele kind na
- * posição exata. O estado vive no `FlowEditorProvider` e persiste via
- * localStorage / export-import JSON (gerenciado pela shell).
+ * Full-screen React Flow canvas with sidebar drag-and-drop: drag a block from
+ * the catalog and drop it on the canvas to create a node of that kind at the
+ * exact position. State lives in `FlowEditorProvider` and persists via
+ * localStorage / JSON export-import (managed by the shell).
  */
 export function FlowCanvas() {
   return (

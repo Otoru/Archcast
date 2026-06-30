@@ -19,9 +19,9 @@ import {
 type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>["variant"]>;
 
 /**
- * Parâmetros do desafio iniciais — valores-padrão sensatos para um sistema
- * web típico (1000 rps steady, 70% leitura, SLO 200ms / 99,9%). Usado pelo
- * `FlowEditorProvider` no primeiro render e como referência nos testes.
+ * Initial challenge params — sensible defaults for a typical web system
+ * (1000 rps steady, 70% reads, 200ms / 99.9% SLO). Used by
+ * `FlowEditorProvider` on first render and as a reference in tests.
  */
 export function defaultChallengeParams(): ChallengeParams {
   return {
@@ -34,7 +34,7 @@ export function defaultChallengeParams(): ChallengeParams {
   };
 }
 
-/** Rótulos humanos para cada chave de `BlockDefaults` (attrs editáveis por nó). */
+/** Human labels for each `BlockDefaults` key (per-node editable attrs). */
 const ATTR_LABELS: Record<string, string> = {
   capacity: "Capacity (rps)",
   latBase: "Base latency (ms)",
@@ -51,9 +51,9 @@ const ATTR_LABELS: Record<string, string> = {
 export type AttrField = { key: string; label: string };
 
 /**
- * Lista os campos de attrs a renderizar no inspector de um nó: uma entrada por
- * chave presente em `preset.defaults` (nunca todas de `BlockDefaults` — um
- * `cdn` expõe 6 campos, não 10). A ordem segue a declaração do preset.
+ * Lists the attr fields to render in a node's inspector: one entry per key
+ * present in `preset.defaults` (never all of `BlockDefaults` — a `cdn`
+ * exposes 6 fields, not 10). Order follows the preset declaration.
  */
 export function attrsFormSpec(preset: BlockPreset): AttrField[] {
   return Object.keys(preset.defaults).map((key) => ({
@@ -63,10 +63,10 @@ export function attrsFormSpec(preset: BlockPreset): AttrField[] {
 }
 
 /**
- * Devolve um novo nó com `data.attrs[key]` atualizado de forma imutável. Se
- * `value` for `undefined` (campo limpo) ou não-finito, a chave é removida dos
- * attrs — o que reverte o override e faz `resolveNode` voltar ao default do
- * preset (`{ ...preset.defaults, ...node.attrs }`).
+ * Returns a new node with `data.attrs[key]` updated immutably. If `value` is
+ * `undefined` (cleared field) or non-finite, the key is removed from attrs —
+ * which reverts the override and makes `resolveNode` fall back to the preset
+ * default (`{ ...preset.defaults, ...node.attrs }`).
  */
 export function applyAttrChange(
   node: BlockNodeType,
@@ -85,7 +85,7 @@ export function applyAttrChange(
   };
 }
 
-/** Estado de uma métrica do veredito frente ao SLO/budget. */
+/** Status of a verdict metric against the SLO/budget. */
 export type MetricStatus = "ok" | "danger";
 
 export type MetricSummary = {
@@ -115,11 +115,11 @@ export type VerdictSummary = {
 };
 
 /**
- * Mapa `Violation` → variante de Badge para o painel de veredito. Honra o
- * `severity`: `warn` é sempre advertência (warning). No resto, violações
- * estruturais (ciclo/aresta inválida), SPOF e blocos obrigatórios ausentes são
- * "duras" (destructive); saturação, latência, availability e rate limit são
- * advertência (warning).
+ * Maps a `Violation` to a Badge variant for the verdict panel. Honors
+ * `severity`: `warn` is always a warning. Otherwise, structural violations
+ * (cycle/invalid edge), SPOF and missing required blocks are "hard"
+ * (destructive); saturation, latency, availability and rate limit are
+ * warnings (warning).
  */
 export function violationBadgeVariant(violation: Violation): BadgeVariant {
   if (violation.severity === "warn") {
@@ -136,18 +136,18 @@ export function violationBadgeVariant(violation: Violation): BadgeVariant {
   }
 }
 
-/** Ids dos nós presentes no canvas RF — usado para filtrar entradas órfãs do veredito congelado. */
+/** Ids of nodes present on the RF canvas — used to filter orphan entries from the frozen verdict. */
 function canvasNodeIds(nodes: BlockNodeType[]): Set<string> {
   return new Set(nodes.map((n) => n.id));
 }
 
-/** Constrói as linhas da tabela de nós: junta `verdict.nodes` com os nós do RF para rótulo, ordenadas por ρ desc. */
+/** Builds the node table rows: joins `verdict.nodes` with RF nodes for labels, sorted by ρ desc. */
 export function nodeRows(verdict: Verdict, nodes: BlockNodeType[]): NodeRow[] {
   const onCanvas = canvasNodeIds(nodes);
   const labelById = new Map<string, string>();
   const instancesById = new Map<string, number>();
-  // Nós da camada client não entram na tabela de nós do veredito — o usuário
-  // raciocina sobre o sistema (edge/compute/data/...), não sobre o cliente.
+  // Client-layer nodes do not go into the verdict node table — the user
+  // reasons about the system (edge/compute/data/...), not about the client.
   const clientIds = new Set<string>();
   for (const node of nodes) {
     const preset = getPreset(node.data.kind);
@@ -155,10 +155,10 @@ export function nodeRows(verdict: Verdict, nodes: BlockNodeType[]): NodeRow[] {
     if (preset?.layer === "client") {
       clientIds.add(node.id);
     }
-    // Instâncias configuradas pelo usuário (stepper) → default do preset →
-    // fallback global. Usado quando o engine não devolve `provisioned`
-    // (autoscaling só roda no handler `server`); os demais nós refletem o
-    // que o usuário definiu, não 0.
+    // User-configured instances (stepper) → preset default → global fallback.
+    // Used when the engine does not return `provisioned` (autoscaling only
+    // runs in the `server` handler); other nodes reflect what the user set,
+    // not 0.
     instancesById.set(
       node.id,
       node.data.attrs?.instances ??
@@ -172,9 +172,9 @@ export function nodeRows(verdict: Verdict, nodes: BlockNodeType[]): NodeRow[] {
       id,
       label: labelById.get(id) ?? id,
       rho: result.rho,
-      // p99 do nó (latency × ln 100) — mesma grandeza somada no veredito
-      // (`computeEndToEndLatency`). Mostrar a média cru deixava o painel
-      // desconectado do `Latency p99` do veredito (~4,6× menor por nó).
+      // Node p99 (latency × ln 100) — same magnitude summed in the verdict
+      // (`computeEndToEndLatency`). Showing the raw mean left the panel
+      // disconnected from the verdict `Latency p99` (~4.6× smaller per node).
       latency: p99FromLatency(result.latency),
       saturated: result.saturated,
       provisioned:
@@ -187,9 +187,9 @@ export function nodeRows(verdict: Verdict, nodes: BlockNodeType[]): NodeRow[] {
 }
 
 /**
- * Resume o `Verdict` em um struct de display: passed + latência / availability
- * frente aos SLOs + violations + linhas de nós. Toda lógica condicional
- * (ok/danger) vive aqui — o componente só mapeia.
+ * Summarizes the `Verdict` into a display struct: passed + latency / availability
+ * against SLOs + violations + node rows. All conditional logic (ok/danger)
+ * lives here — the component only maps.
  */
 export function summarizeVerdict(
   verdict: Verdict,
@@ -222,11 +222,12 @@ export function summarizeVerdict(
 }
 
 /**
- * Formata uma razão 0–1 como percentual com `digits` casas. Um valor < 1 nunca
- * exibe "100%": `toFixed` arredonda (0.99995 → "100.00%"), o que mente sobre uma
- * disponibilidade impossível. Nesse caso trava no maior valor representável
- * abaixo de 100 na precisão dada (ex.: 99.99% com 2 casas). Um `1` genuíno
- * (sem dependências a jusante) ainda mostra 100%.
+ * Formats a 0–1 ratio as a percentage with `digits` decimal places. A value
+ * < 1 never displays "100%": `toFixed` rounds (0.99995 → "100.00%"), which
+ * would lie about an impossible availability. In that case it clamps to the
+ * largest representable value below 100 at the given precision (e.g. 99.99%
+ * with 2 digits). A genuine `1` (with no downstream dependencies) still
+ * shows 100%.
  */
 export function formatPercent(value: number, digits = 3): string {
   const pct = value * 100;
@@ -237,28 +238,28 @@ export function formatPercent(value: number, digits = 3): string {
 }
 
 /**
- * Magnitude (|r|+|w|+|a|) de um `Flow` do engine — o quanto de fluxo aquela
- * edge carrega, usado para normalizar a cor/espessura visual no modo run.
+ * Magnitude (|r|+|w|+|a|) of an engine `Flow` — how much flow that edge
+ * carries, used to normalize the visual color/thickness in run mode.
  */
 function flowMagnitude(flow: { read: number; write: number; async: number }) {
   return flow.read + flow.write + flow.async;
 }
 
 /**
- * Deriva o `RunState` visual a partir do `Verdict` + grafo RF: qual é o
- * bottleneck (max ρ, excluindo a camada client — o usuário raciocina sobre o
- * sistema, não sobre o cliente), quais nós estão saturados, e o estado de
- * cada edge (magnitude normalizada pelo pico, e se a origem está saturada →
- * edge "quente" em wf-destructive). Puríssima, sem React — testável isolada.
+ * Derives the visual `RunState` from the `Verdict` + RF graph: which is the
+ * bottleneck (max ρ, excluding the client layer — the user reasons about the
+ * system, not the client), which nodes are saturated, and the state of each
+ * edge (magnitude normalized by the peak, and whether the source is saturated
+ * → "hot" edge in wf-destructive). Pure, no React — independently testable.
  *
- * `running` só sinaliza lock/animação; `hasVerdict` (running OU congelado
- * pós-stop) gatinga os destaques. Sem veredito → estado "vazio" (nada
- * destacado), mantendo `running` para o lock caso seja chamado assim.
+ * `running` only signals lock/animation; `hasVerdict` (running OR frozen
+ * post-stop) gates the highlights. No verdict → "empty" state (nothing
+ * highlighted), keeping `running` for the lock if called that way.
  */
 /**
- * Varre `verdict.nodes` (excluindo client e nós fora do canvas) para achar os
- * saturados e o bottleneck (max ρ). Extraído de `deriveRunState` para manter a
- * complexidade cognitiva sob controle.
+ * Scans `verdict.nodes` (excluding client and off-canvas nodes) to find the
+ * saturated ones and the bottleneck (max ρ). Extracted from `deriveRunState`
+ * to keep cognitive complexity under control.
  */
 function deriveBottleneck(
   verdict: Verdict,
@@ -287,7 +288,7 @@ function deriveBottleneck(
       bottleneckId = id;
     }
   }
-  // Se nenhum nó não-cliente tem resultado, bottleneckId fica null (bem).
+  // If no non-client node has a result, bottleneckId stays null (correct).
   return {
     saturatedNodeIds,
     bottleneckId: maxRho === Number.NEGATIVE_INFINITY ? null : bottleneckId,
@@ -311,8 +312,9 @@ export function deriveRunState(
     };
   }
 
-  // client layer não entra no raciocínio de sistema (mesmo critério do
-  // `nodeRows`) — não é candidata a bottleneck nem a destaque de saturado.
+  // The client layer is not part of system reasoning (same criterion as
+  // `nodeRows`) — it is not a bottleneck candidate nor eligible for saturated
+  // highlighting.
   const { saturatedNodeIds, bottleneckId } = deriveBottleneck(verdict, nodes);
 
   let maxFlow = 0;
@@ -333,8 +335,8 @@ export function deriveRunState(
     edgeStateById.set(edge.id, {
       flow: mag,
       magnitude: maxFlow > 0 ? mag / maxFlow : 0,
-      // edge "quente": o nó de origem está saturado (o gargalo está esgotando
-      // esta saída).
+      // "hot" edge: the source node is saturated (the bottleneck is exhausting
+      // this output).
       saturated: saturatedNodeIds.has(edge.source),
     });
   }

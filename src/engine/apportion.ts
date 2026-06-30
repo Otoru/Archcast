@@ -21,12 +21,13 @@ interface ClassifiedOutgoing {
   absorbers: ClassifiedEdge[];
   servers: ClassifiedEdge[];
   broadcasters: ClassifiedEdge[];
-  // Absorvedores-encaminhadores (CDN/WAF) irmãos: têm `roleFor` = server, mas
-  // são identificados pelo primitive. `hitRatio` = fração que servem direto.
+  // Forwarding absorbers (CDN/WAF) as siblings: they have `roleFor` = server,
+  // but are identified by their primitive. `hitRatio` = fraction served
+  // directly.
   forwarders: { edgeId: string; hitRatio: number }[];
 }
 
-/** Reparte as edges de saída do canal em servers/absorbers/broadcasters/forwarders. */
+/** Splits a channel's outgoing edges into servers/absorbers/broadcasters/forwarders. */
 function classifyOutgoing(
   outgoing: Graph["edges"],
   nodeById: Map<string, Graph["nodes"][number]>,
@@ -60,7 +61,7 @@ function classifyOutgoing(
     } else if (role.kind === "broadcaster") {
       result.broadcasters.push(classified);
     } else if (resolved.primitive === "absorber-forwarding") {
-      // outboundMultiplier = 1 − hitRatio (fração de miss repassada adiante).
+      // outboundMultiplier = 1 − hitRatio (the miss fraction forwarded onward).
       const passThrough = handler.outboundMultiplier?.(resolved) ?? 1;
       result.forwarders.push({ edgeId: edge.id, hitRatio: 1 - passThrough });
     } else {
@@ -70,7 +71,7 @@ function classifyOutgoing(
   return result;
 }
 
-/** Capacidade-peso de um server (peso da edge se `weighted`, senão capacidade distribuída). */
+/** Capacity-weight of a server (edge weight if `weighted`, otherwise distributed capacity). */
 function serverWeight(
   server: ClassifiedEdge,
   registry: NodeTypeRegistry,
@@ -172,12 +173,13 @@ export function apportionChannel(
     deliveries.set(absorber.edgeId, flow);
   }
 
-  // Encaminhadores SEM servers irmãos: é o caso série (ex.: client → cdn →
-  // origin). O hit ratio TAMBÉM se aplica aqui, só que adiante: o CDN recebe o
-  // fluxo cheio (precisa pra calcular o próprio rho — toda request consulta o
-  // cache) e repassa só os misses pro origin via `outboundMultiplier` em
-  // `propagate` (origin vê `(1−hitRatio)×flow`). Aplicar `hitRatio` aqui também
-  // contaria o desconto duas vezes — por isso o CDN recebe o `residual` cheio.
+  // Forwarders WITHOUT sibling servers: this is the series case (e.g.
+  // client → cdn → origin). The hit ratio ALSO applies here, but downstream:
+  // the CDN receives the full flow (needed to compute its own rho — every
+  // request consults the cache) and forwards only the misses to the origin via
+  // `outboundMultiplier` in `propagate` (origin sees `(1−hitRatio)×flow`).
+  // Applying `hitRatio` here too would double-count the discount — that's why
+  // the CDN receives the full `residual`.
   if (servers.length === 0) {
     for (const forwarder of forwarders) {
       deliveries.set(forwarder.edgeId, residual);
@@ -185,9 +187,9 @@ export function apportionChannel(
     return { deliveries, hasValidDestination: true };
   }
 
-  // Encaminhadores COM servers irmãos: o cliente roteia a fração de hit pro
-  // CDN (servida direto) e só os misses seguem pros servers. Cada CDN tira
-  // `hitRatio × residual` do topo; o restante desce pros servers.
+  // Forwarders WITH sibling servers: the client routes the hit fraction to the
+  // CDN (served directly) and only the misses go to the servers. Each CDN takes
+  // `hitRatio × residual` off the top; the rest descends to the servers.
   for (const forwarder of forwarders) {
     deliveries.set(forwarder.edgeId, forwarder.hitRatio * residual);
     residual *= 1 - forwarder.hitRatio;

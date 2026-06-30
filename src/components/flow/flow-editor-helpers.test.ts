@@ -42,7 +42,7 @@ describe("attrsFormSpec", () => {
     const preset = getPreset("cdn");
     if (!preset) throw new Error("preset cdn ausente");
     const keys = attrsFormSpec(preset).map((f) => f.key);
-    // cdn não tem instances nem rateCap nem drainRate nem maxDepth
+    // cdn has no instances, rateCap, drainRate, or maxDepth
     expect(keys).not.toContain("instances");
     expect(keys).not.toContain("rateCap");
     expect(keys).toContain("hitRatio");
@@ -63,7 +63,7 @@ describe("applyAttrChange", () => {
     const node = rfNode("n1", "app-server");
     const next = applyAttrChange(node, "capacity", 5000);
     expect(next.data.attrs).toEqual({ capacity: 5000 });
-    expect(node.data.attrs).toBeUndefined(); // original intocado
+    expect(node.data.attrs).toBeUndefined(); // original untouched
   });
 
   it("mescla sobre attrs existentes sem perder outras chaves", () => {
@@ -238,11 +238,11 @@ describe("formatadores", () => {
   it("formatPercent", () => {
     expect(formatPercent(0.9995)).toBe("99.950%");
     expect(formatPercent(0.5, 1)).toBe("50.0%");
-    // Um valor < 1 nunca exibe "100%" (arredondamento mentiria sobre uma
-    // disponibilidade impossível) — trava no maior representável na precisão.
+    // A value < 1 never displays "100%" (rounding would lie about an
+    // impossible availability) — clamps to the largest representable at the precision.
     expect(formatPercent(0.99999, 2)).toBe("99.99%");
     expect(formatPercent(0.9999999, 3)).toBe("99.999%");
-    // Um 1 genuíno ainda mostra 100%.
+    // A genuine 1 still shows 100%.
     expect(formatPercent(1, 2)).toBe("100.00%");
   });
 });
@@ -277,7 +277,7 @@ describe("deriveRunState", () => {
       endToEndLatency: 100,
       systemAvailability: 0.999,
       nodes: {
-        // cliente fica de fora do raciocínio mesmo com rho altíssimo
+        // client is excluded from reasoning even with a very high rho
         web: { rho: 5, latency: 1, saturated: true },
         app: { rho: 0.8, latency: 20, saturated: false },
         db: { rho: 0.95, latency: 5, saturated: true },
@@ -286,8 +286,8 @@ describe("deriveRunState", () => {
       violations: [],
     };
     const state = deriveRunState(verdict, nodes, [], false);
-    expect(state.bottleneckId).toBe("db"); // 0.95 > 0.8, cliente ignorado
-    // só nós não-clientes saturados entram no conjunto
+    expect(state.bottleneckId).toBe("db"); // 0.95 > 0.8, client ignored
+    // only saturated non-client nodes go into the set
     expect([...state.saturatedNodeIds].sort()).toEqual(["db"]);
   });
 
@@ -331,9 +331,9 @@ describe("deriveRunState", () => {
     expect(state.maxFlow).toBe(800);
     const e1 = state.edgeStateById.get("e1");
     const e2 = state.edgeStateById.get("e2");
-    expect(e1?.saturated).toBe(true); // origem app saturada
+    expect(e1?.saturated).toBe(true); // source app saturated
     expect(e1?.magnitude).toBeCloseTo(1, 5); // 800/800
-    expect(e2?.saturated).toBe(false); // origem db não saturada
+    expect(e2?.saturated).toBe(false); // source db not saturated
     expect(e2?.magnitude).toBeCloseTo(0.25, 5); // 200/800
     expect(state.running).toBe(true);
   });

@@ -18,9 +18,9 @@ function metricBadgeVariant(status: MetricStatus) {
 }
 
 /**
- * Formata o load (ρ) como porcentagem. Capacidades grandes geram ρ pequeno
- * (ex.: 1000/200000 = 0.005); como "%" mostra "0.5%" em vez de "0.00", que
- * parecia zerado. Saturado (ρ ≥ 1, possivelmente Infinity) vira "≥100%".
+ * Formats the load (ρ) as a percentage. Large capacities yield small ρ
+ * (e.g. 1000/200000 = 0.005); as "%" it shows "0.5%" instead of "0.00",
+ * which looked zeroed out. Saturated (ρ ≥ 1, possibly Infinity) becomes "≥100%".
  */
 function formatLoad(rho: number): string {
   if (!Number.isFinite(rho) || rho >= 1) {
@@ -31,9 +31,9 @@ function formatLoad(rho: number): string {
 }
 
 /**
- * Formata o uso de storage como porcentagem da capacidade (usado / cap). Mesmo
- * estilo do `Load`: satura em ">100%" no overflow (o número absoluto fica na
- * violação de storage). Mantém o stat numa linha só, sem quebra.
+ * Formats storage usage as a percentage of capacity (used / cap). Same style
+ * as `Load`: saturates at ">100%" on overflow (the absolute number lives in
+ * the storage violation). Keeps the stat on a single line, no wrap.
  */
 function formatStorageUsage(usedGB: number, capGB: number): string {
   if (capGB <= 0) {
@@ -46,7 +46,7 @@ function formatStorageUsage(usedGB: number, capGB: number): string {
   return `${pct < 1 && pct > 0 ? pct.toFixed(1) : pct.toFixed(0)}%`;
 }
 
-/** Par rótulo/valor das métricas de cada nó (load, latency, instances, dropped, storage). */
+/** Label/value pair for each node's metrics (load, latency, instances, dropped, storage). */
 function NodeStat({
   label,
   value,
@@ -94,13 +94,13 @@ function MetricRow({
 }
 
 /**
- * Painel de veredito: mostra o resultado da última `runSimulation` —
- * latência/availability frente aos SLOs, lista de violations e tabela de nós
- * (ρ, saturação, latência, provisionados, drops). Estados: vazio (pré-Run),
- * erro (ciclo/exception) e veredito. O botão Run vive na top-bar (e abre esta
- * seção), não aqui.
+ * Verdict panel: shows the result of the last `runSimulation` —
+ * latency/availability against the SLOs, list of violations and a node table
+ * (ρ, saturation, latency, provisioned, drops). States: empty (pre-Run),
+ * error (cycle/exception) and verdict. The Run button lives in the top bar
+ * (and opens this section), not here.
  *
- * Presentational: recebe tudo por props para stories sem o provider.
+ * Presentational: receives everything via props for stories without the provider.
  */
 export function FlowVerdict({
   verdict,
@@ -141,9 +141,9 @@ export function FlowVerdict({
 
   const summary = summarizeVerdict(verdict, params, nodes);
 
-  // nodeId → rótulo humano do preset (ex.: "Web Client"), para mostrar nas
-  // violations em vez do id cru (ex.: "web-client-eea4f5c3-..."). O id
-  // completo fica acessível via o ícone de info (tooltip).
+  // nodeId → human-readable preset label (e.g. "Web Client"), to show in
+  // violations instead of the raw id (e.g. "web-client-eea4f5c3-..."). The
+  // full id remains available via the info icon (tooltip).
   const labelById = new Map(
     nodes.map((node) => [node.id, getPreset(node.data.kind)?.label ?? node.id]),
   );
@@ -245,7 +245,7 @@ export function FlowVerdict({
   );
 }
 
-/** Conectado ao `FlowEditorProvider`: lê veredito/params/nodes. */
+/** Connected to `FlowEditorProvider`: reads verdict/params/nodes. */
 export function FlowVerdictConnected() {
   const { verdict, verdictError, params, nodes } = useFlowEditor();
   return (

@@ -38,11 +38,11 @@ describe("absorber-forwarding", () => {
   });
 
   it("cdn weights the origin p99 by its miss ratio on the read path", () => {
-    // Mesma lógica do cache-aside (test 13 de run-simulation), aplicada ao CDN
-    // em série: o lookup no CDN é sempre pago (hit ou miss), e o origin só é
-    // atingido num miss → seu p99 entra pesado por passThrough = 1 − hitRatio.
-    // Sem isso, um CDN com 85% de hit não mexe no verdict (origin somado
-    // integralmente) — o mesmo bug que o cache já teve.
+    // Same logic as cache-aside (test 13 of run-simulation), applied to the CDN
+    // in series: the CDN lookup is always paid (hit or miss), and the origin is
+    // only hit on a miss → its p99 weighs in via passThrough = 1 − hitRatio.
+    // Without this, a CDN with 85% hit does not affect the verdict (origin added
+    // in full) — the same bug the cache once had.
     const withCdn = makeGraph(
       [
         sourceNode("src"),
@@ -70,7 +70,7 @@ describe("absorber-forwarding", () => {
 
     expect(verdict.endToEndLatency).toBeCloseTo(expected);
 
-    // E o CDN de fato reduz o verdict vs. bater direto no origin.
+    // And the CDN in fact reduces the verdict vs. hitting the origin directly.
     const noCdn = makeGraph(
       [
         sourceNode("src"),
@@ -86,11 +86,11 @@ describe("absorber-forwarding", () => {
   });
 
   it("cdn beside the app (sibling read targets) offloads only its hit fraction", () => {
-    // Cliente ligado no CDN E no app (duas leituras irmãs). O CDN não é uma
-    // réplica que balanceia carga por capacidade — ele serve só a fração de hit
-    // e os misses seguem pro app. Sem isso, o split por capacidade mandava 2/3
-    // do tráfego pro CDN (cap maior) e os misses sumiam, derrubando o load do
-    // app/bancos pra perto de zero.
+    // Client connected to both the CDN and the app (two sibling reads). The CDN
+    // is not a capacity-load-balancing replica — it only serves the hit fraction
+    // and misses go to the app. Without this, the capacity-based split would
+    // send 2/3 of the traffic to the CDN (higher cap) and misses would vanish,
+    // dropping the load on the app/databases to near zero.
     const graph = makeGraph(
       [
         sourceNode("src"),
@@ -110,7 +110,7 @@ describe("absorber-forwarding", () => {
       defaultParams({ rps: 10000, readWriteRatio: 1 }),
     );
 
-    // CDN serve 5% (500); os 95% de miss (9500) vão pro app e descem pro db.
+    // CDN serves 5% (500); the 95% of misses (9500) go to the app and down to the db.
     expect(verdict.edgeFlows.e1?.read).toBeCloseTo(500);
     expect(verdict.edgeFlows.e2?.read).toBeCloseTo(9500);
     expect(verdict.edgeFlows.e3?.read).toBeCloseTo(9500);

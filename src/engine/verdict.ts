@@ -131,8 +131,8 @@ export function buildVerdict(input: BuildVerdictInput): Verdict {
     collectLatencyViolation(effectiveLatency, input.params.latencySlo),
   );
 
-  // `passed` reflete apenas violações duras — warns (severity "warn") sinalizam
-  // um problema de modelagem mas não derrubam o veredito.
+  // `passed` reflects only hard violations — warns (severity "warn") flag a
+  // modeling issue but do not bring down the verdict.
   const failing = violations.filter((v) => v.severity !== "warn");
 
   return {

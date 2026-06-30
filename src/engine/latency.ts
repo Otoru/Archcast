@@ -30,12 +30,13 @@ function channelLatencyFromNode(
     (edge) => edge.from === nodeId && edge.kind === channel,
   );
 
-  // Fração do tráfego que ESTE nó repassa adiante. Para um server comum é 1
-  // (encaminha tudo); para um absorvedor-encaminhador (CDN/WAF) é
-  // `1 − hitRatio` — só os misses atingem o origin a jusante. É o espelho de
-  // `outboundMultiplier` (usado em `propagate` no lado carga) aplicado ao lado
-  // latência: o p99 do origin só é pago na fração que de fato chega lá. Mesma
-  // lógica do cache-aside (irmão absorvedor), agora estendida ao CDN em série.
+  // Fraction of the traffic THIS node forwards onward. For a regular server
+  // it is 1 (forwards everything); for a forwarding absorber (CDN/WAF) it is
+  // `1 − hitRatio` — only the misses reach the downstream origin. This is the
+  // mirror of `outboundMultiplier` (used in `propagate` on the load side)
+  // applied to the latency side: the origin's p99 is only paid on the fraction
+  // that actually reaches it. Same logic as cache-aside (absorber sibling),
+  // now extended to the CDN in series.
   const currentNode = nodeById.get(nodeId);
   let nodeForwardRatio = 1;
   if (currentNode) {
@@ -72,21 +73,21 @@ function channelLatencyFromNode(
     }
   }
 
-  // O lookup no cache-aside é sempre pago (hit ou miss): soma-se o p99 do
-  // absorvedor integralmente.
+  // The cache-aside lookup is always paid (hit or miss): the absorber's p99
+  // is added in full.
   for (const absorber of absorberNodes) {
     total += nodeP99(nodeResults, absorber.id);
   }
 
   if (serverNodes.length > 0) {
-    // O servidor a jusante (ex.: DB num cache-aside, ou o origin atrás de um
-    // CDN) só é atingido numa fração dos pedidos: pesa-se o p99 do caminho
-    // adiante pelo produto do `nodeForwardRatio` deste nó (miss ratio do
-    // CDN/WAF) pelos `passThrough` dos absorvedores irmãos (miss ratio do
-    // cache) — mesmo residual usado em `apportionChannel`. Assim um cache/CDN
-    // com 90% de hit reduz a contribuição do origin a 10% —
-    // colocar/remover move o verdict de forma visível, esteja o origin saturado
-    // ou não.
+    // The downstream server (e.g. a DB in cache-aside, or the origin behind a
+    // CDN) is only reached on a fraction of the requests: the p99 of the
+    // onward path is weighted by the product of this node's `nodeForwardRatio`
+    // (miss ratio of the CDN/WAF) and the `passThrough` of the sibling
+    // absorbers (miss ratio of the cache) — the same residual used in
+    // `apportionChannel`. So a cache/CDN with a 90% hit ratio reduces the
+    // origin's contribution to 10% — adding/removing it moves the verdict
+    // visibly, whether the origin is saturated or not.
     const passThroughProduct = absorberNodes.reduce(
       (acc, absorber) => acc * absorber.passThrough,
       nodeForwardRatio,
