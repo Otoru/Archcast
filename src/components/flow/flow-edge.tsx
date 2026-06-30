@@ -3,17 +3,7 @@
 import { BaseEdge, type EdgeProps, getBezierPath } from "@xyflow/react";
 import { useContext } from "react";
 import { RunStateContext } from "@/components/flow/block-node";
-
-/** Cor neutra da edge por faixa de magnitude do fluxo (não-saturada). */
-function strokeByMagnitude(magnitude: number): string {
-  if (magnitude < 0.33) {
-    return "var(--color-wf-border-soft)";
-  }
-  if (magnitude < 0.66) {
-    return "var(--color-wf-border)";
-  }
-  return "var(--color-wf-focus)";
-}
+import { strokeByMagnitude } from "@/components/flow/flow-edge-style";
 
 /**
  * Edge custom do modo run: deriva cor e espessura do `RunStateContext`
