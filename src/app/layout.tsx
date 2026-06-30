@@ -7,8 +7,9 @@ import { rootFontVariables } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Wireframe",
-  description: "Wireframe — projeto Next.js com Tailwind, Base UI e Storybook",
+  title: "Archcast",
+  description:
+    "A visual simulator for distributed-system architecture. Draw the graph, run the challenge, read the verdict.",
 };
 
 export default function RootLayout({

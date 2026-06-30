@@ -10,7 +10,7 @@ import {
 } from "@/components/flow/graph-serialization";
 
 export type GraphIO = {
-  /** Serializa o grafo atual e baixa `wireframe-graph.json`. */
+  /** Serializa o grafo atual e baixa `archcast-graph.json`. */
   exportGraph: () => void;
   /** Abre um seletor de arquivo; carrega o JSON escolhido (undoable via onLoad). */
   importGraph: () => void;
@@ -37,10 +37,10 @@ export function useGraphIO(
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "wireframe-graph.json";
+    anchor.download = "archcast-graph.json";
     anchor.click();
     URL.revokeObjectURL(url);
-    toast.success("Exported graph as wireframe-graph.json");
+    toast.success("Exported graph as archcast-graph.json");
   }, [getSnapshot]);
 
   const importGraph = useCallback(() => {
