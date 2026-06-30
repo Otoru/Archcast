@@ -77,7 +77,7 @@ export const NoVerdict: Story = {
   render: () => <Harness selectedNodeId="db" verdict={null} />,
 };
 
-/** Modo run ativo: Challenge params travados (só attrs de nodes editáveis). */
+/** Run mode active: Challenge params locked (only node attrs editable). */
 export const Running: Story = {
   render: () => (
     <Harness selectedNodeId="app" verdict={passedVerdict} running />

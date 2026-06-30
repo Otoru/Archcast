@@ -15,9 +15,9 @@ import type {
 } from "@/engine/types";
 
 /**
- * Conjunto de nós que têm um distribuidor (load-balancer/api-gateway) imediato
- * a montante. Para esses nós, `instances` escala a capacidade; nos demais,
- * `instances` só afeta disponibilidade.
+ * Set of nodes that have an immediate distributor (load-balancer/api-gateway)
+ * upstream. For these nodes, `instances` scales capacity; for the others,
+ * `instances` only affects availability.
  */
 function computeDistributedUpstream(
   graph: Graph,
@@ -142,16 +142,18 @@ function resolveChannelFlow(
   isSource: boolean,
 ): number {
   const direct = channelValue(routingFlow, channel);
-  // sync→async: um nó com entrada síncrona (read/write) e saída async empacota
-  // read+write no canal async — é o que alimenta uma fila a jusante.
+  // sync→async: a node with synchronous input (read/write) and async output
+  // packs read+write into the async channel — this is what feeds a downstream
+  // queue.
   if (channel === "async" && direct <= 0 && hasAsyncOutgoing && !isSource) {
     return routingFlow.read + routingFlow.write;
   }
-  // async→sync: o espelho — um worker consome async e re-emite síncrono
-  // (read/write) ao processar. Sua vazão de saída é dirigida pelo throughput
-  // async que ele recebeu, então um canal síncrono sem fluxo direto (a entrada
-  // do worker é só async) carrega o async de entrada adiante (ex.: worker que
-  // escreve no db). Sem isso, a escrita nunca chega ao destino síncrono.
+  // async→sync: the mirror — a worker consumes async and re-emits synchronous
+  // (read/write) when processing. Its output throughput is driven by the async
+  // throughput it received, so a synchronous channel with no direct flow (the
+  // worker's input is only async) carries the incoming async forward (e.g. a
+  // worker that writes to the db). Without this, the write never reaches the
+  // synchronous destination.
   if (
     channel !== "async" &&
     direct <= 0 &&
@@ -217,14 +219,14 @@ function propagateNodeChannels(
         type: "structure",
         nodeId,
         detail: `${channel} channel has flow but no valid destination`,
-        // Aviso, não erro: o canal tem fluxo sem destino válido, mas isso
-        // descreve uma decisão de modelagem pendente (ex.: ainda não ligado a
-        // um absorvedor) em vez de uma falha dura do sistema simulado.
+        // Warning, not error: the channel has flow with no valid destination,
+        // but this describes a pending modeling decision (e.g. not yet connected
+        // to an absorber) rather than a hard failure of the simulated system.
         severity: "warn",
       });
-      // O fluxo que este canal tentou encaminhar não tem para onde ir, então é
-      // perdido — conta como drop no nó. Ex.: uma CDN com 85% de hit encaminha
-      // 15% adiante; sem fallback, esses 15% caem aqui.
+      // The flow this channel tried to forward has nowhere to go, so it is
+      // lost — counts as a drop on the node. E.g. a CDN with an 85% hit ratio
+      // forwards 15% onward; without a fallback, that 15% lands here.
       const lost = channelFlow * outboundScale;
       const result = state.nodeResults[nodeId];
       if (result && lost > 0) {

@@ -111,7 +111,7 @@ describe("deserializeGraph", () => {
 
   it("filtra attrs não-numéricos e tolera attrs ausente", () => {
     const doc = validDoc();
-    // @ts-expect-error: input cru de JSON pode ter tipos inválidos
+    // @ts-expect-error: raw JSON input may have invalid types
     doc.nodes[0].attrs = { instances: 3, bogus: "x", nope: null };
     const loaded = deserializeGraph(doc);
     expect(loaded.nodes[0].data.attrs).toEqual({ instances: 3 });

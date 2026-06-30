@@ -30,7 +30,7 @@ describe("acceptance criteria", () => {
       defaultParams({ rps: 1000, readWriteRatio: 1 }),
     );
 
-    // Default hitRatio do CDN = 0.10 → 90% de miss repassado ao origin.
+    // CDN default hitRatio = 0.10 → 90% miss forwarded to origin.
     expect(verdict.edgeFlows.e2?.read).toBeCloseTo(900);
     expect(verdict.nodes.cdn?.rho).toBeCloseTo(1000 / 2e5);
   });
@@ -244,16 +244,16 @@ describe("acceptance criteria", () => {
   });
 
   it("D11: storage below maxStorage passes; above → data-loss violation; replicas don't help", () => {
-    // src → db (write). O canal write carrega rps × (1 − readWriteRatio); com
-    // readWriteRatio=0, todo o rps vira escrita no db. `bytesPerWrite` setado
-    // liga a checagem de perda de dados.
+    // src → db (write). The write channel carries rps × (1 − readWriteRatio);
+    // with readWriteRatio=0, the entire rps becomes writes to the db. Setting
+    // `bytesPerWrite` enables the data-loss check.
     const build = (attrs: Record<string, number>) =>
       makeGraph(
         [sourceNode("src"), presetNode("db", "sql-db", attrs)],
         [{ id: "e1", from: "src", to: "db", kind: "write" }],
       );
 
-    // 100 rps × 1024 B × 1d ≈ 8,2 GB < 50 GB → sem perda de dados.
+    // 100 rps × 1024 B × 1d ≈ 8.2 GB < 50 GB → no data loss.
     const ok = runSimulation(
       build({ maxStorage: 50, retention: 1, capacity: 1e6 }),
       defaultParams({ rps: 100, readWriteRatio: 0, bytesPerWrite: 1024 }),
@@ -261,7 +261,7 @@ describe("acceptance criteria", () => {
     expect(ok.violations.some((v) => v.type === "storage")).toBe(false);
     expect(ok.passed).toBe(true);
 
-    // Mesma carga, retenção de 30d → ~247 GB > 50 GB → perda de dados.
+    // Same load, 30d retention → ~247 GB > 50 GB → data loss.
     const overflow = runSimulation(
       build({ maxStorage: 50, retention: 30, capacity: 1e6 }),
       defaultParams({ rps: 100, readWriteRatio: 0, bytesPerWrite: 1024 }),
@@ -269,8 +269,9 @@ describe("acceptance criteria", () => {
     expect(overflow.violations.some((v) => v.type === "storage")).toBe(true);
     expect(overflow.passed).toBe(false);
 
-    // Aumentar `instances` do db NÃO resolve o overflow — réplicas servem pra
-    // load/SPOF, não pra dar espaço (o cap é `maxStorage`, sem `× instances`).
+    // Increasing the db `instances` does NOT fix the overflow — replicas serve
+    // for load/SPOF, not to add space (the cap is `maxStorage`, without
+    // `× instances`).
     const withReplicas = runSimulation(
       build({ maxStorage: 50, retention: 30, capacity: 1e6, instances: 10 }),
       defaultParams({ rps: 100, readWriteRatio: 0, bytesPerWrite: 1024 }),

@@ -53,8 +53,9 @@ describe("llm-inference + vector-db blocks", () => {
       defaultParams({ rps: 20, readWriteRatio: 1, latencySlo: 5000 }),
     );
 
-    // O LLM domina a latência (latBase 600 → p99 na casa de segundos), mas o
-    // SLO de IA acomoda isso. capacity 50 vs 20 rps → rho 0.4, sem saturar.
+    // The LLM dominates latency (latBase 600 → p99 in the seconds range), but
+    // the AI SLO accommodates it. capacity 50 vs 20 rps → rho 0.4, no
+    // saturation.
     expect(verdict.nodes.llm?.saturated).toBe(false);
     expect(verdict.nodes.vdb?.saturated).toBe(false);
     expect(verdict.passed).toBe(true);

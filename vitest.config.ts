@@ -18,7 +18,11 @@ export default defineConfig({
   },
   test: {
     coverage: {
-      provider: "v8",
+      // Istanbul (per-statement instrumentation) rather than v8: v8 collapses
+      // each component to a couple of anchor lines, which makes SonarCloud's
+      // new-code coverage under-report JSX-heavy files. Istanbul emits a hit
+      // for every executable line so the lcov maps cleanly to Sonar's line view.
+      provider: "istanbul",
       reporter: ["text", "lcov"],
     },
     projects: [

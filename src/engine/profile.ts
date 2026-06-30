@@ -32,10 +32,10 @@ function tickCount(cfg: ProfileConfig): number {
 }
 
 /**
- * `params.rps` é a carga de referência:
- * - steady: constante = rps.
- * - spiky: baseline = rps, com burst de `SPIKY_MULTIPLIER`× durante a janela.
- * - diurnal: oscila em torno de rps (média = rps), pico (1+amplitude)×, vale (1-amplitude)×.
+ * `params.rps` is the reference load:
+ * - steady: constant = rps.
+ * - spiky: baseline = rps, with a burst of `SPIKY_MULTIPLIER`× during the window.
+ * - diurnal: oscillates around rps (mean = rps), peak (1+amplitude)×, trough (1-amplitude)×.
  */
 export function steadyProfile(
   baseRps: number,

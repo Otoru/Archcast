@@ -8,8 +8,10 @@ import {
   useRef,
   useState,
 } from "react";
+import { toast } from "sonner";
 import { AppSidebar } from "@/components/flow/app-sidebar";
 import { BLOCK_DND_MIME } from "@/components/flow/dnd";
+import { EmptyCanvasHint } from "@/components/flow/empty-canvas-hint";
 import {
   FlowEditorProvider,
   useFlowEditor,
@@ -21,22 +23,31 @@ import {
   readStoredGraph,
   writeStoredGraph,
 } from "@/components/flow/graph-persistence";
+import { deserializeGraph } from "@/components/flow/graph-serialization";
+import {
+  hasSeenOnboarding,
+  markOnboardingSeen,
+} from "@/components/flow/onboarding-persistence";
+import { PRESET_GRAPHS } from "@/components/flow/preset-graphs";
+import { TOUR_STEPS, TourOverlay, useTour } from "@/components/flow/tour";
+import { WelcomeDialog } from "@/components/flow/welcome-dialog";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
-// Canvas mede o viewport; carrega só no cliente (Next 16 exige ssr:false
-// dentro de um Client Component — esta shell é client).
+// The canvas measures the viewport; load it client-side only (Next 16 requires
+// ssr:false inside a Client Component — this shell is a client component).
 const FlowCanvas = dynamic(
   () => import("@/components/flow/flow-canvas").then((m) => m.FlowCanvas),
   { ssr: false },
 );
 
 const AUTOSAVE_DEBOUNCE_MS = 400;
+const EXAMPLE_PRESET_ID = "ecommerce";
 
 /**
- * Layout interno (dentro do `FlowEditorProvider`): header com toolbar + canvas
- * (sidebar esquerda de paleta + painel direito inspector são siblings do
- * `<main>` dentro do `SidebarProvider`). Consome `useFlowEditor` para disparar a
- * simulação (Run/Stop), orquestrar o inspector e persistir o grafo.
+ * Internal layout (inside `FlowEditorProvider`): header with toolbar + canvas
+ * (the left palette sidebar + right inspector panel are siblings of `<main>`
+ * inside the `SidebarProvider`). Consumes `useFlowEditor` to trigger the
+ * simulation (Run/Stop), orchestrate the inspector and persist the graph.
  */
 function ShellLayout() {
   const {
@@ -58,23 +69,38 @@ function ShellLayout() {
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [inspectorValue, setInspectorValue] = useState<string[]>(["node"]);
   const [helpOpen, setHelpOpen] = useState(false);
-  // Contador incrementado a cada Run: alimenta `scrollToVerdictSignal` do
-  // inspector, que rola a seção Verdict para dentro da vista ao rodar.
+  // Sidebar controlled so the tour/overlay can open the palette at the right step.
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // First-visit onboarding: the welcome is shown once (localStorage flag).
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
+  // Gate so the empty overlay doesn't flash before the localStorage restore.
+  const [hydrated, setHydrated] = useState(false);
+  const {
+    step: tourStep,
+    isActive: tourActive,
+    start: startTourStep,
+    end: endTour,
+    next: tourNext,
+    prev: tourPrev,
+  } = useTour();
+  // Counter incremented on every Run: feeds the inspector's
+  // `scrollToVerdictSignal`, which scrolls the Verdict section into view on run.
   const [runStartNonce, setRunStartNonce] = useState(0);
-  // `running` e `selectedNodeId` lidos via ref dentro do efeito de clique-em-nó:
-  // durante o run o inspector fica travado no Verdict, então clicar num nó (que
-  // ainda seleciona no canvas) NÃO reabre a seção Node. Refs em vez de deps pra o
-  // efeito só rodar no clique (nonce), não quando `running`/`selectedNodeId` mudem.
+  // `running` and `selectedNodeId` read via ref inside the node-click effect:
+  // during a run the inspector is locked on the Verdict, so clicking a node
+  // (which still selects it on the canvas) does NOT reopen the Node section.
+  // Refs instead of deps so the effect only runs on click (nonce), not when
+  // `running`/`selectedNodeId` change.
   const runningRef = useRef(running);
   runningRef.current = running;
   const selectedNodeIdRef = useRef(selectedNodeId);
   selectedNodeIdRef.current = selectedNodeId;
 
-  // Run inicia o modo run (lock + efeito nas edges + recálculo ao vivo) E
-  // abre o inspector já na seção Verdict — a toolbar mora no header (fora do
-  // painel), então puxamos o painel pra mostrar o resultado sem o usuário
-  // precisar abrir/rolar manualmente. O `runStartNonce` dispara a rolagem até o
-  // Verdict (caso o painel estivesse rolado lá embaixo).
+  // Run starts run mode (lock + edge effect + live recompute) AND opens the
+  // inspector already on the Verdict section — the toolbar lives in the header
+  // (outside the panel), so we pull the panel open to show the result without
+  // the user having to open/scroll manually. `runStartNonce` triggers the
+  // scroll to the Verdict (in case the panel was scrolled all the way down).
   const handleRun = useCallback(() => {
     setInspectorOpen(true);
     setInspectorValue(["verdict"]);
@@ -82,9 +108,9 @@ function ShellLayout() {
     startRun();
   }, [startRun]);
 
-  // Durante o run o accordion fica travado no Verdict: a shell ignora qualquer
-  // troca de seção vinda do `onValueChange` (valor controlado não muda). Em
-  // idle repassa normalmente.
+  // During a run the accordion is locked on the Verdict: the shell ignores any
+  // section change coming from `onValueChange` (the controlled value doesn't
+  // change). In idle it forwards normally.
   const handleInspectorValueChange = useCallback(
     (next: string[]) => {
       if (running) return;
@@ -93,12 +119,12 @@ function ShellLayout() {
     [running],
   );
 
-  // Clicar num nó no canvas abre o inspector já na seção de atributos (Node).
-  // Observa `nodeClickNonce` (não só `selectedNodeId`) para reagir a CADA
-  // clique — reclicar o nó já selecionado não muda o id, mas deve reabrir a
-  // seção Node mesmo assim (ex.: depois de um Run que mudou para Verdict). No
-  // run o efeito é no-op (ficamos no Verdict travado). `nodeClickNonce === 0`
-  // é o mount (sem clique) — aí não abrimos nada.
+  // Clicking a node on the canvas opens the inspector already on the attributes
+  // (Node) section. It watches `nodeClickNonce` (not just `selectedNodeId`) to
+  // react to EVERY click — re-clicking the already-selected node doesn't change
+  // the id, but should still reopen the Node section (e.g. after a Run switched
+  // to the Verdict). During a run the effect is a no-op (we stay locked on the
+  // Verdict). `nodeClickNonce === 0` is the mount (no click) — we open nothing.
   useEffect(() => {
     if (nodeClickNonce === 0) return;
     if (runningRef.current) return;
@@ -108,27 +134,79 @@ function ShellLayout() {
     }
   }, [nodeClickNonce]);
 
-  // Restore de mount — recupera o último grafo salvo do localStorage (auto-save)
-  // e faz dele o **baseline** do histórico (`replaceCurrent`), então undo não
-  // reverte pra tela vazia. `applyGraph` dispara o efeito observador do
-  // histórico, mas o commit echo é descartado (snapshot == present após o
-  // replaceCurrent). Todas as deps são callbacks estáveis (useCallback), então
-  // o efeito roda só no mount.
+  // Onboarding: handlers shared by the welcome, the empty-canvas overlay and
+  // the tour. `loadExample` reuses the pattern from the toolbar's `handlePreset`
+  // (applyGraph + deserializeGraph + requestFitView) and marks the seen flag.
+  const loadExample = useCallback(() => {
+    const preset = PRESET_GRAPHS.find((p) => p.id === EXAMPLE_PRESET_ID);
+    if (preset) {
+      applyGraph(deserializeGraph(preset.doc));
+      requestFitView();
+      toast.success(`Loaded preset: ${preset.title}`);
+    }
+    markOnboardingSeen();
+    setWelcomeOpen(false);
+    endTour();
+  }, [applyGraph, requestFitView, endTour]);
+
+  const startTour = useCallback(() => {
+    markOnboardingSeen();
+    setWelcomeOpen(false);
+    startTourStep();
+  }, [startTourStep]);
+
+  const dismissWelcome = useCallback(() => {
+    markOnboardingSeen();
+    setWelcomeOpen(false);
+  }, []);
+
+  // First visit: if the onboarding flag isn't set, opens the welcome once on
+  // mount.
+  useEffect(() => {
+    if (!hasSeenOnboarding()) {
+      setWelcomeOpen(true);
+    }
+  }, []);
+
+  // Tour: prepares the target before measuring — opens the palette on the
+  // "palette" step, the inspector on the "inspector"/"challenge" steps, and
+  // expands the accordion's Challenge section on the "challenge" step so it's
+  // visible under the spotlight.
+  useEffect(() => {
+    if (tourStep === null) return;
+    const step = TOUR_STEPS[tourStep];
+    if (step?.id === "palette") setSidebarOpen(true);
+    if (step?.id === "inspector") setInspectorOpen(true);
+    if (step?.id === "challenge") {
+      setInspectorOpen(true);
+      setInspectorValue(["challenge"]);
+    }
+  }, [tourStep]);
+
+  // Mount restore — recovers the last saved graph from localStorage (auto-save)
+  // and makes it the history **baseline** (`replaceCurrent`), so undo doesn't
+  // revert to an empty canvas. `applyGraph` fires the history observer effect,
+  // but the echo commit is discarded (snapshot == present after replaceCurrent).
+  // All deps are stable callbacks (useCallback), so the effect only runs on
+  // mount. `setHydrated(true)` releases the empty-canvas overlay (avoids a flash
+  // before we know whether there's a saved graph).
   const { replaceCurrent } = history;
   useEffect(() => {
     const doc = readStoredGraph();
-    if (!doc) return;
-    applyGraph(doc);
-    replaceCurrent({
-      nodes: doc.nodes,
-      edges: doc.edges,
-      params: doc.params,
-    });
-    requestFitView();
+    if (doc) {
+      applyGraph(doc);
+      replaceCurrent({
+        nodes: doc.nodes,
+        edges: doc.edges,
+        params: doc.params,
+      });
+      requestFitView();
+    }
+    setHydrated(true);
   }, [applyGraph, replaceCurrent, requestFitView]);
 
-  // Auto-save debounced: 400ms após qualquer mudança (nó/aresta/param/posição),
-  // grava no localStorage. Não salva durante o run (evita churn do recálculo).
+  // Debounced auto-save: 400ms after any change (node/edge/param/position),
+  // writes to localStorage. Doesn't save during a run (avoids recompute churn).
   useEffect(() => {
     if (running) return;
     const timer = setTimeout(() => {
@@ -137,9 +215,9 @@ function ShellLayout() {
     return () => clearTimeout(timer);
   }, [nodes, edges, params, running]);
 
-  // Atalhos de teclado (undo/redo/copy/paste/duplicate/run-toggle/help). Lidos
-  // via ref pra o listener ser registrado uma vez só e sempre ver estado fresco.
-  // Ctrl+A e Delete continuam no `FlowCanvas` (teclas diferentes, sem conflito).
+  // Keyboard shortcuts (undo/redo/copy/paste/duplicate/run-toggle/help). Read
+  // via ref so the listener is registered once and always sees fresh state.
+  // Ctrl+A and Delete remain in `FlowCanvas` (different keys, no conflict).
   const shortcutsRef = useRef({
     running,
     nodes,
@@ -185,10 +263,11 @@ function ShellLayout() {
     return () => globalThis.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  // Aceita o drop-effect "move" em toda a shell durante o arraste de um bloco
-  // — sem isso, o cursor vira 🚫 (no-drop) ao cruzar a sidebar/header, já que
-  // só o canvas dá `preventDefault` no `dragover`. A criação do nó continua só
-  // no `onDrop` do canvas; aqui só mantemos o cursor de "mover" consistente.
+  // Accepts the "move" drop-effect across the whole shell while dragging a
+  // block — without this, the cursor turns into 🚫 (no-drop) when crossing the
+  // sidebar/header, since only the canvas calls `preventDefault` on `dragover`.
+  // Node creation still happens only on the canvas `onDrop`; here we just keep
+  // the "move" cursor consistent.
   const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     if (event.dataTransfer.types.includes(BLOCK_DND_MIME)) {
       event.preventDefault();
@@ -197,9 +276,14 @@ function ShellLayout() {
   }, []);
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: cursor do drag-and-drop (não é widget de teclado)
+    // biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop cursor (not a keyboard widget)
     <div className="h-dvh w-full overflow-hidden" onDragOver={onDragOver}>
-      <SidebarProvider className="h-full w-full" style={{ minHeight: 0 }}>
+      <SidebarProvider
+        className="h-full w-full"
+        style={{ minHeight: 0 }}
+        open={sidebarOpen}
+        onOpenChange={setSidebarOpen}
+      >
         <AppSidebar />
         <main className="flex h-full flex-1 flex-col overflow-hidden">
           <FlowToolbar
@@ -208,9 +292,21 @@ function ShellLayout() {
             onRun={handleRun}
             helpOpen={helpOpen}
             onHelpChange={setHelpOpen}
+            onStartTour={startTour}
           />
-          <div className="relative flex-1 overflow-hidden">
+          <div className="relative flex-1 overflow-hidden" data-tour="canvas">
             <FlowCanvas />
+            <EmptyCanvasHint
+              visible={
+                hydrated &&
+                nodes.length === 0 &&
+                !running &&
+                !tourActive &&
+                !welcomeOpen
+              }
+              onLoadExample={loadExample}
+              onTakeTour={startTour}
+            />
           </div>
         </main>
         <FlowInspector
@@ -222,18 +318,30 @@ function ShellLayout() {
           scrollToVerdictSignal={runStartNonce}
         />
       </SidebarProvider>
+      <WelcomeDialog
+        open={welcomeOpen}
+        onTakeTour={startTour}
+        onLoadExample={loadExample}
+        onDismiss={dismissWelcome}
+      />
+      <TourOverlay
+        step={tourStep}
+        onNext={tourNext}
+        onPrev={tourPrev}
+        onEnd={endTour}
+        onLoadExample={loadExample}
+      />
     </div>
   );
 }
 
 /**
- * Shell de layout da home: header com toolbar (File/Presets/Edit/Help +
- * Run/Stop + toggles) + canvas React Flow em tela cheia + sidebar shadcn
- * esquerda (paleta, colapsável offcanvas) + painel direito (inspector de
- * attrs/params/veredito). O `FlowEditorProvider` envolve tudo para que paleta,
- * canvas, inspector e toolbar compartilhem o mesmo estado. O grafo persiste
- * automaticamente no localStorage ao refresh; export/import de JSON trocam
- * grafos entre sessões.
+ * Home layout shell: header with toolbar (File/Presets/Edit/Help + Run/Stop +
+ * toggles) + full-screen React Flow canvas + left shadcn sidebar (palette,
+ * collapsible offcanvas) + right panel (attrs/params/verdict inspector). The
+ * `FlowEditorProvider` wraps everything so the palette, canvas, inspector and
+ * toolbar share the same state. The graph auto-persists to localStorage on
+ * refresh; JSON export/import swaps graphs between sessions.
  */
 export function FlowShell() {
   return (

@@ -22,10 +22,10 @@ export interface BlockFlags {
   elastic?: boolean;
   drop?: boolean;
   /**
-   * Marca o bloco como um distribuidor de carga (load-balancer, api-gateway).
-   * Um `server` a jusante só escala capacidade por `instances` se houver um
-   * distribuidor upstream — sem ele, múltiplas instâncias só ajudam a
-   * disponibilidade, não a capacidade (não há como dividir tráfego entre elas).
+   * Marks the block as a load distributor (load-balancer, api-gateway).
+   * A downstream `server` only scales capacity via `instances` if there is an
+   * upstream distributor — without one, multiple instances only help
+   * availability, not capacity (there is no way to split traffic among them).
    */
   distribute?: boolean;
 }
@@ -40,16 +40,16 @@ export interface BlockDefaults {
   instances?: number;
   rateCap?: number;
   /**
-   * Capacidade de storage do nó (GB). Configuração do banco, não do challenge.
-   * Réplicas (`instances`) NÃO somam storage — o dataset inteiro precisa caber
-   * numa instância; réplicas servem pra load e SPOF. Usado pela checagem de
-   * perda de dados quando `ChallengeParams.bytesPerWrite` está setado.
+   * Storage capacity of the node (GB). Database configuration, not challenge.
+   * Replicas (`instances`) do NOT add storage — the whole dataset must fit in a
+   * single instance; replicas serve load and SPOF. Used by the data loss check
+   * when `ChallengeParams.bytesPerWrite` is set.
    */
   maxStorage?: number;
   /**
-   * Janela de retenção (dias) — por quanto tempo os dados escritos ficam
-   * armazenados antes de expirar. Quanto maior, mais volume acumulado (pior
-   * caso: taxa de escrita de pico sustentada por toda a janela).
+   * Retention window (days) — how long written data remains stored before
+   * expiring. The larger it is, the more accumulated volume (worst case:
+   * peak write rate sustained across the whole window).
    */
   retention?: number;
 }
@@ -78,11 +78,11 @@ export interface ChallengeParams {
   availabilitySlo: number;
   requiredKinds?: string[];
   /**
-   * Volume escrito por requisição (bytes) — único parâmetro de storage que vive
-   * no challenge (workload). Se `0`/ausente, a checagem de storage fica
-   * desligada. Combinado com o `writeFlow` (já particionado pelo
-   * `readWriteRatio`) e o `retention` do nó, determina se o banco estoura o
-   * `maxStorage` (perda de dados).
+   * Volume written per request (bytes) — the only storage parameter that lives
+   * in the challenge (workload). If `0`/absent, the storage check is disabled.
+   * Combined with the `writeFlow` (already split by `readWriteRatio`) and the
+   * node's `retention`, determines whether the database exceeds `maxStorage`
+   * (data loss).
    */
   bytesPerWrite?: number;
 }
@@ -120,9 +120,9 @@ export interface NodeResult {
   rejectedRps?: number;
   backlog?: number;
   outboundFlow?: number;
-  /** Volume de storage acumulado no nó (GB) — só pra UI, worst-case. */
+  /** Accumulated storage volume on the node (GB) — UI only, worst-case. */
   storageUsed?: number;
-  /** Capacidade de storage do nó (GB) — só pra UI (`maxStorage`, sem `× instances`). */
+  /** Storage capacity of the node (GB) — UI only (`maxStorage`, no `× instances`). */
   storageCap?: number;
 }
 
@@ -143,9 +143,9 @@ export interface ComputeContext {
   params: ChallengeParams;
   tickState?: TickState;
   /**
-   * `true` se este nó tem um distribuidor (load-balancer/api-gateway) imediato
-   * a montante. Para `server`, é o que libera o scaling de capacidade por
-   * `instances` — sem distribuidor, `instances` só afeta disponibilidade.
+   * `true` if this node has an immediate distributor (load-balancer/api-gateway)
+   * upstream. For `server`, this is what enables capacity scaling via
+   * `instances` — without a distributor, `instances` only affects availability.
    */
   distributed?: boolean;
 }
@@ -174,10 +174,10 @@ export interface Violation {
   nodeId?: string;
   detail: string;
   /**
-   * `warn` = advertência não-fatal (não derruba o `passed`); `error` (default
-   * quando omitido) = falha dura. Usado para condições estruturais que sinalizam
-   * um problema de modelagem sem invalidar o veredito (ex.: canal com fluxo sem
-   * destino válido).
+   * `warn` = non-fatal warning (does not bring down `passed`); `error` (default
+   * when omitted) = hard failure. Used for structural conditions that signal a
+   * modeling problem without invalidating the verdict (e.g. a channel with flow
+   * but no valid destination).
    */
   severity?: "warn" | "error";
 }
@@ -200,11 +200,11 @@ export function effectiveCapacity(attrs: Record<string, number>): number {
 }
 
 /**
- * Capacidade efetiva de um `server` considerando se há um distribuidor
- * upstream. Com distribuidor, `instances` escala a capacidade (o balanceador
- * divide o tráfego entre as instâncias); sem distribuidor, a capacidade é só a
- * base — múltiplas instâncias sem balanceador não atendem mais requisições
- * (só redundância/disponibilidade).
+ * Effective capacity of a `server`, considering whether there is an upstream
+ * distributor. With a distributor, `instances` scales capacity (the balancer
+ * splits traffic across instances); without one, capacity is just the base —
+ * multiple instances without a balancer do not serve more requests (only
+ * redundancy/availability).
  */
 export function distributedCapacity(
   attrs: Record<string, number>,

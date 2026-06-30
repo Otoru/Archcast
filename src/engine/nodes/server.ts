@@ -50,9 +50,9 @@ export const serverHandler: PrimitiveHandler = {
       };
     }
 
-    // Sem distribuidor upstream, `instances` não escala capacidade (só
-    // disponibilidade) — não há como dividir tráfego entre as instâncias. O
-    // elástico acima se auto-provisiona, então não depende de distribuidor.
+    // Without an upstream distributor, `instances` does not scale capacity
+    // (only availability) — there is no way to split traffic across instances.
+    // The elastic provisioning above self-provisions, so it does not depend on a distributor.
     const distributed = ctx.distributed ?? false;
     const instances = distributed ? (attrs.instances ?? 1) : 1;
 

@@ -20,8 +20,8 @@ export function ThemeToggle() {
     setMounted(true);
   }, []);
 
-  // Gate em `mounted` para que servidor e primeira renderização do cliente
-  // produzam o mesmo className (evita hydration mismatch do next-themes).
+  // Gate on `mounted` so the server and the first client render produce the
+  // same className (avoids a next-themes hydration mismatch).
   const isDark = mounted && resolvedTheme === "dark";
   const label = isDark ? "Switch to light theme" : "Switch to dark theme";
 

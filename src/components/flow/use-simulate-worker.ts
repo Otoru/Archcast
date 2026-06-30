@@ -20,23 +20,24 @@ export type SimulateWorkerOptions = {
 };
 
 export type SimulateWorker = {
-  /** Envia o grafo + params pro worker; cancela qualquer execução anterior. */
+  /** Sends the graph + params to the worker; cancels any previous execution. */
   run: (graph: Graph, params: ChallengeParams) => void;
-  /** Descarta o resultado pendente (incrementa o reqId sem terminar o worker). */
+  /** Discards the pending result (increments reqId without terminating the worker). */
   cancel: () => void;
 };
 
 /**
- * Singleton preguiçoso do worker de simulação. O worker é criado só na
- * primeira chamada de `run` e reutilizado entre execuções; terminado no
- * unmount. Correlaciona requisições por `reqId` monótono: resultados de uma
- * execução superseded (usuário editou o grafo) são descartados.
+ * Lazy singleton for the simulation worker. The worker is created only on
+ * the first `run` call and reused across executions; terminated on unmount.
+ * Correlates requests by a monotonic `reqId`: results from a superseded
+ * execution (user edited the graph) are discarded.
  *
- * Fallback síncrono: se a construção do worker falhar (SSR/build/jsdom em
- * testes sem suporte a `Worker`), `runSimulation` roda inline com os mesmos
- * callbacks — via `queueMicrotask` para o `setComputing(true)` pintar antes.
- * `CycleError` é serializado como `isCycle` pelo worker (a classe não atravessa
- * a fronteira de clone estrutural); no fallback síncrono usamos `instanceof`.
+ * Synchronous fallback: if worker construction fails (SSR/build/jsdom in
+ * tests without `Worker` support), `runSimulation` runs inline with the same
+ * callbacks — via `queueMicrotask` so `setComputing(true)` paints first.
+ * `CycleError` is serialized as `isCycle` by the worker (the class does not
+ * cross the structured-clone boundary); in the synchronous fallback we use
+ * `instanceof`.
  */
 export function useSimulateWorker(opts: SimulateWorkerOptions): SimulateWorker {
   const optsRef = useRef(opts);
@@ -61,7 +62,7 @@ export function useSimulateWorker(opts: SimulateWorkerOptions): SimulateWorker {
       worker.onmessage = (event: MessageEvent<SimReply>) => {
         const reply = event.data;
         if (!reply || reply.id !== pendingRef.current) {
-          return; // resultado stale de uma execução superseded
+          return; // stale result from a superseded execution
         }
         pendingRef.current = null;
         if (reply.kind === "result") {
@@ -74,7 +75,7 @@ export function useSimulateWorker(opts: SimulateWorkerOptions): SimulateWorker {
       workerRef.current = worker;
       return worker;
     } catch {
-      return null; // sem suporte a worker — usa fallback síncrono
+      return null; // no worker support — use synchronous fallback
     }
   }, []);
 
@@ -84,8 +85,8 @@ export function useSimulateWorker(opts: SimulateWorkerOptions): SimulateWorker {
       pendingRef.current = id;
       const worker = ensureWorker();
       if (!worker) {
-        // Fallback síncrono: roda na main thread, mas adia para o microtask
-        // seguinte para o `setComputing(true)` pintar antes do bloqueio.
+        // Synchronous fallback: runs on the main thread, but defers to the
+        // next microtask so `setComputing(true)` paints before the blocking.
         queueMicrotask(() => {
           if (pendingRef.current !== id) {
             return;

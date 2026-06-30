@@ -24,7 +24,7 @@ function makeHandlers(
 
 describe("handleShortcutKey", () => {
   beforeEach(() => {
-    // limpa o clipboard module-level entre os testes
+    // clear the module-level clipboard between tests
     copySelection([], []);
   });
 
@@ -67,11 +67,11 @@ describe("handleShortcutKey", () => {
     expect(handleShortcutKey({ key: "c", mod: true, shift: false }, s)).toBe(
       true,
     );
-    // copySelection é module-level (sem retorno); só garantimos que consumiu.
+    // copySelection is module-level (no return); we just ensure it was consumed.
   });
 
   it("Mod+V cola e aplica quando há clipboard e não está rodando", () => {
-    // popula o clipboard com uma seleção
+    // populate the clipboard with a selection
     const node = {
       id: "n1",
       type: "block",
@@ -79,7 +79,7 @@ describe("handleShortcutKey", () => {
       data: { kind: "app-server" },
       selected: true,
     };
-    // @ts-expect-error: shape mínimo de BlockNode para o teste
+    // @ts-expect-error: minimal BlockNode shape for the test
     copySelection([node], []);
     const s = makeHandlers();
     expect(handleShortcutKey({ key: "v", mod: true, shift: false }, s)).toBe(
@@ -105,11 +105,11 @@ describe("handleShortcutKey", () => {
       selected: true,
     };
     const s = makeHandlers({
-      // @ts-expect-error: shape mínimo de BlockNode para o teste
+      // @ts-expect-error: minimal BlockNode shape for the test
       nodes: [node],
     });
     const dup = duplicateSelection(s.nodes, s.edges);
-    expect(dup).not.toBeNull(); // sanity: há algo a duplicar
+    expect(dup).not.toBeNull(); // sanity: there is something to duplicate
     expect(handleShortcutKey({ key: "d", mod: true, shift: false }, s)).toBe(
       true,
     );

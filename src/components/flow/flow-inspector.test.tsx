@@ -45,7 +45,7 @@ describe("FlowInspector", () => {
       name: new RegExp(preset?.label ?? ""),
     });
 
-    // começa aberta (defaultValue ["node"])
+    // starts open (defaultValue ["node"])
     expect(trigger).toHaveAttribute("aria-expanded", "true");
 
     await user.click(trigger);

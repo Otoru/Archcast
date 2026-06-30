@@ -113,8 +113,8 @@ describe("Accordion", () => {
         </Accordion.Item>
       </Accordion.Root>,
     );
-    // base-ui mantém o botão focável (não usa `disabled` nativo) e expõe o
-    // estado via `aria-disabled` + `data-disabled`.
+    // base-ui keeps the button focusable (does not use native `disabled`) and
+    // exposes the state via `aria-disabled` + `data-disabled`.
     expect(screen.getByRole("button", { name: "Seção A" })).toHaveAttribute(
       "aria-disabled",
       "true",

@@ -419,10 +419,11 @@ describe("runSimulation", () => {
   });
 
   it("16: production cache preset absorbs 90% of reads (cache-aside via catalog)", () => {
-    // Usa o preset de produção `cache` (absorber-aside, hitRatio default 0.90)
-    // — sem registrar nenhum preset de teste. Valida D10: um novo bloco no
-    // catálogo funciona sem código de handler/UI (NodeAttrsForm deriva os
-    // campos de `preset.defaults`, BlockNode deriva as portas de `preset.edges`).
+    // Uses the production `cache` preset (absorber-aside, hitRatio default
+    // 0.90) — without registering any test preset. Validates D10: a new block
+    // in the catalog works without handler/UI code (NodeAttrsForm derives
+    // fields from `preset.defaults`, BlockNode derives ports from
+    // `preset.edges`).
     const graph = makeGraph(
       [
         sourceNode("src"),
@@ -442,8 +443,8 @@ describe("runSimulation", () => {
       defaultParams({ rps: 1000, readWriteRatio: 1 }),
     );
 
-    // Cache absorve R (todas as leituras passam por ele); só os 10% de miss
-    // chegam ao DB (hitRatio 0.90 → 1−0.90 = 0.10).
+    // Cache absorbs R (all reads pass through it); only the 10% misses reach
+    // the DB (hitRatio 0.90 → 1−0.90 = 0.10).
     expect(verdict.edgeFlows.e2?.read).toBeCloseTo(1000);
     expect(verdict.edgeFlows.e3?.read).toBeCloseTo(100);
     expect(
@@ -452,10 +453,10 @@ describe("runSimulation", () => {
   });
 
   it("17: worker consuming async re-emits sync write to its db", () => {
-    // async→sync: o app empacota a escrita no canal async (alimenta a fila); o
-    // worker consome o async e, ao processar, re-emite síncrono (write) pro db.
-    // Sem a conversão async→sync, a aresta worker→db ficava zerada — nenhuma
-    // escrita chegava ao banco apesar do tráfego.
+    // async→sync: the app packages the write into the async channel (feeds the
+    // queue); the worker consumes the async and, when processing, re-emits
+    // synchronously (write) to the db. Without the async→sync conversion, the
+    // worker→db edge stayed zeroed — no write reached the db despite traffic.
     const graph = makeGraph(
       [
         sourceNode("src"),

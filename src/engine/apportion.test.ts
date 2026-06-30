@@ -206,7 +206,7 @@ describe("apportionChannel", () => {
         { id: "db1", kind: "app-server", attrs: { capacity: 100, latBase: 2 } },
       ],
       [
-        // aresta válida + aresta pendurada (destino ausente do grafo)
+        // valid edge + dangling edge (destination absent from the graph)
         { id: "e1", from: "app", to: "db1", kind: "read" },
         { id: "e2", from: "app", to: "ghost", kind: "read" },
       ],
@@ -214,7 +214,8 @@ describe("apportionChannel", () => {
 
     const result = apportionChannel("app", "read", 100, graph, registry);
 
-    // todo o fluxo vai pro único destino real; a dangling é descartada
+    // all flow goes to the single real destination; the dangling one is
+    // discarded
     expect(result.deliveries.get("e1")).toBeCloseTo(100);
     expect(result.deliveries.has("e2")).toBe(false);
     expect(result.hasValidDestination).toBe(true);

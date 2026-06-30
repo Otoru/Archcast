@@ -16,21 +16,21 @@ export type HistoryApi = {
   canRedo: boolean;
   undo: () => void;
   redo: () => void;
-  /** Agenda um commit debounced (300ms) — o último snapshot de uma rajada vence, coalescentando arrastes de posição. */
+  /** Schedules a debounced commit (300ms) — the last snapshot of a burst wins, coalescing position drags. */
   pushHistory: (snapshot: EditorSnapshot) => void;
-  /** Reset imediato do baseline (zera past/future) — usado no restore de mount/share pra que undo não limpe o grafo restaurado. */
+  /** Immediate baseline reset (clears past/future) — used on mount/share restore so undo doesn't clear the restored graph. */
   replaceCurrent: (snapshot: EditorSnapshot) => void;
 };
 
 const DEBOUNCE_MS = 300;
 const MAX_PAST = 50;
 
-/** Descarta `selected` (estado efêmero de UI) pra que trocas de seleção não virem passos de undo. */
+/** Drops `selected` (ephemeral UI state) so selection changes don't become undo steps. */
 function stripSelected(nodes: BlockNodeType[]): BlockNodeType[] {
   return nodes.map((node) => ({ ...node, selected: false }));
 }
 
-/** Assinatura do snapshot sem `selected` — mesma ideia da `runSignature` do provider. */
+/** Snapshot signature without `selected` — same idea as the provider's `runSignature`. */
 function snapshotSignature(snap: EditorSnapshot): string {
   const ns = snap.nodes
     .map(
@@ -48,19 +48,19 @@ function snapshotSignature(snap: EditorSnapshot): string {
 }
 
 /**
- * Histórico undo/redo de snapshot (estado completo, incluindo posições). Modelo
- * `past`/`present`/`future` com `present` guardado num ref (não re-renderiza a
- * árvore a cada commit). `pushHistory` é debounced: uma rajada de mudanças
- * (arraste, edição de attrs) vira UM passo — o último snapshot da rajada é
- * commitado, empurrando o `present` anterior pro `past`. `commit` compara o
- * snapshot com o `present` (via assinatura) e descarta echoes: após `undo`/
- * `apply`/restore, o efeito observador do provider dispara `pushHistory` com o
- * estado recém-aplicado, que é idêntico ao novo `present` → no-op (não cria
- * passo fantasma nem empurra o estado pré-restore pro `past`).
+ * Snapshot undo/redo history (full state, including positions). `past`/
+ * `present`/`future` model with `present` kept in a ref (does not re-render
+ * the tree on every commit). `pushHistory` is debounced: a burst of changes
+ * (drag, attrs edit) becomes ONE step — the last snapshot of the burst is
+ * committed, pushing the previous `present` onto `past`. `commit` compares the
+ * snapshot with `present` (via signature) and discards echoes: after `undo`/
+ * `apply`/restore, the provider's observer effect fires `pushHistory` with the
+ * just-applied state, which is identical to the new `present` → no-op (no
+ * phantom step is created and the pre-restore state is not pushed to `past`).
  *
- * `replaceCurrent` zera past/future e define o baseline — chamado no restore de
- * mount (localStorage) pra que o estado restaurado seja a origem do undo, não
- * um passo intermediário que undo reverteria pra tela vazia.
+ * `replaceCurrent` clears past/future and sets the baseline — called on mount
+ * restore (localStorage) so the restored state is the origin of undo, not an
+ * intermediate step that undo would revert to an empty canvas.
  */
 export function useEditorHistory(
   apply: (snapshot: EditorSnapshot) => void,
@@ -84,10 +84,10 @@ export function useEditorHistory(
         present &&
         snapshotSignature(present) === snapshotSignature(snapshot)
       ) {
-        return; // echo (pós-apply/undo/restore) ou mudança só de seleção — descarta.
+        return; // echo (post-apply/undo/restore) or selection-only change — discard.
       }
       if (!present) {
-        // Primeiro commit (mount): vira baseline, sem empurrar nada pro past.
+        // First commit (mount): becomes baseline, without pushing anything to past.
         presentRef.current = snapshot;
         syncFlags();
         return;

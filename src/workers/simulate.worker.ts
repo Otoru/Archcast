@@ -18,11 +18,11 @@ type SimReply =
   | { kind: "result"; id: number; verdict: Verdict }
   | { kind: "error"; id: number; message: string; isCycle: boolean };
 
-// `globalThis` num module worker é o `DedicatedWorkerGlobalScope`; o cast
-// evita o choque de tipos com a lib DOM do tsconfig. `postMessage` clona
-// estruturalmente o payload — `CycleError` (subclasse de Error) NÃO clona seu
-// tipo, por isso serializamos `isCycle` aqui (onde a classe está em escopo) e
-// a thread principal só lê a flag.
+// `globalThis` in a module worker is the `DedicatedWorkerGlobalScope`; the
+// cast avoids a type clash with the DOM lib from tsconfig. `postMessage`
+// structurally clones the payload — `CycleError` (an Error subclass) does NOT
+// clone its type, so we serialize `isCycle` here (where the class is in scope)
+// and the main thread only reads the flag.
 const workerSelf = globalThis as unknown as {
   onmessage: ((ev: MessageEvent<SimRequest>) => void) | null;
   postMessage(message: SimReply): void;

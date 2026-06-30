@@ -45,12 +45,12 @@ describe("detectSpof", () => {
   });
 
   it("flags every single-instance relay on the unique source→sink path (LB behind a WAF)", () => {
-    // src → waf → lb → app → db: cada nó na cadeia (exceto o db, sink) é um
-    // SPOF quando tem 1 instância. Antes do fix, o LB NÃO era flaggeado: ao
-    // removê-lo, o WAF (cuja única saída era o LB) virava um "sink" falso e
-    // continuava alcançável a partir de src, então o algoritmo entendia o
-    // caminho como intacto. Com os sinks derivados do grafo original, o db
-    // passa a ser o sink de referência — remover o LB o torna inalcançável.
+    // src → waf → lb → app → db: every node in the chain (except db, the
+    // sink) is a SPOF when it has 1 instance. Before the fix, the LB was NOT
+    // flagged: removing it made the WAF (whose only output was the LB) become
+    // a fake "sink" and remain reachable from src, so the algorithm understood
+    // the path as intact. With sinks derived from the original graph, db
+    // becomes the reference sink — removing the LB makes it unreachable.
     const graph = makeGraph(
       [
         sourceNode("src"),

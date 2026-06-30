@@ -4,8 +4,8 @@ import { defaultChallengeParams } from "@/components/flow/flow-editor-helpers";
 import { type ChallengeParams, getPreset } from "@/engine";
 
 /**
- * Versão do formato de documento. Bump + migração se o shape mudar; por ora
- * só `1` existe. `deserializeGraph` rejeita qualquer outra versão.
+ * Document format version. Bump + migrate if the shape changes; for now only
+ * `1` exists. `deserializeGraph` rejects any other version.
  */
 export const GRAPH_DOC_VERSION = 1;
 
@@ -32,10 +32,10 @@ export type GraphDocument = {
 };
 
 /**
- * Grafo pronto pra aplicar no editor: nós/arestas no shape do React Flow (com
- * `data.kind`/`data.attrs`) + params. É o que `deserializeGraph` devolve e o que
- * `applyGraph` consome — distinto do `GraphDocument` (plano, serializável), que
- * é o shape de export/share/localStorage.
+ * Graph ready to apply to the editor: nodes/edges in the React Flow shape (with
+ * `data.kind`/`data.attrs`) + params. This is what `deserializeGraph` returns
+ * and what `applyGraph` consumes — distinct from `GraphDocument` (flat,
+ * serializable), which is the export/share/localStorage shape.
  */
 export type LoadedGraph = {
   nodes: BlockNodeType[];
@@ -44,11 +44,11 @@ export type LoadedGraph = {
 };
 
 /**
- * Colapsa o estado do editor (RF nodes/edges + params) num `GraphDocument`
- * estável e serializável. `data.kind`/`data.attrs` viram top-level; `type:"block"`
- * é implícito (recriado no load); `selected` é descartado (estado efêmero de
- * UI). Edges mantêm `source`/`target`/`sourceHandle`/`targetHandle` — exatamente
- * o que `buildGraph` lê para reconstruir o grafo do motor.
+ * Collapses the editor state (RF nodes/edges + params) into a stable,
+ * serializable `GraphDocument`. `data.kind`/`data.attrs` become top-level;
+ * `type:"block"` is implicit (recreated on load); `selected` is dropped
+ * (ephemeral UI state). Edges keep `source`/`target`/`sourceHandle`/`targetHandle`
+ * — exactly what `buildGraph` reads to reconstruct the engine graph.
  */
 export function serializeGraph(
   nodes: BlockNodeType[],
@@ -83,12 +83,12 @@ function isNumber(value: unknown): value is number {
 }
 
 /**
- * Reconstrói RF nodes/edges/params a partir de um `GraphDocument` (ou qualquer
- * `unknown` vindo de JSON.parse). Valida `version`, arrays, o shape de cada
- * nó/aresta, e **cada `kind` via `getPreset`** — um `kind` desconhecido vira um
- * `Error("Unknown block kind: X")` que o chamador converte em `toast.error`.
- * `params` é mergeado sobre os defaults para tolerar campos ausentes (links
- * compartilhados de versões anteriores), mantendo o tipo seguro.
+ * Reconstructs RF nodes/edges/params from a `GraphDocument` (or any `unknown`
+ * coming from JSON.parse). Validates `version`, arrays, the shape of each
+ * node/edge, and **each `kind` via `getPreset`** — an unknown `kind` becomes an
+ * `Error("Unknown block kind: X")` which the caller turns into a `toast.error`.
+ * `params` is merged over defaults to tolerate missing fields (shared links
+ * from older versions), while keeping the type safe.
  */
 export function deserializeGraph(doc: unknown): LoadedGraph {
   if (!isRecord(doc)) {

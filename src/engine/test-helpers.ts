@@ -6,7 +6,7 @@ import type {
   NodeInstance,
 } from "@/engine/types";
 
-/** Preset de teste para absorber-aside — não faz parte do catálogo de produção. */
+/** Test preset for absorber-aside — not part of the production catalog. */
 export const TEST_CACHE_KIND = "test-cache";
 
 export function ensureTestCachePreset(): void {

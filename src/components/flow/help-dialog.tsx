@@ -1,5 +1,7 @@
 "use client";
 
+import { PlayIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -43,14 +45,46 @@ const FIELDS: {
   },
 ];
 
+const GETTING_STARTED: { label: string; text: string }[] = [
+  {
+    label: "Drag",
+    text: "a block from the left palette onto the canvas to add a node.",
+  },
+  {
+    label: "Connect",
+    text: "by dragging from a block's output port to another's input port.",
+  },
+  {
+    label: "Configure",
+    text: "attributes in the right Inspector; the Challenge tab sets traffic & SLOs.",
+  },
+  {
+    label: "Run",
+    text: "with the Run button or ⌘/Ctrl+Enter — the Verdict panel shows the results.",
+  },
+];
+
+const SHORTCUTS: { keys: string; label: string }[] = [
+  { keys: "⌘/Ctrl+Enter", label: "Run / Stop" },
+  { keys: "?", label: "Open this help" },
+  { keys: "⌘/Ctrl+Z", label: "Undo" },
+  { keys: "⌘/Ctrl+Shift+Z", label: "Redo" },
+];
+
 /**
- * Modal de ajuda: explica os parâmetros do painel e o significado de ρ (load).
- * Controlado (open/onOpenChange) pela shell.
+ * Help modal: explains the usage flow (Getting started), the panel parameters
+ * and the meaning of ρ (load). Controlled (open/onOpenChange) by the shell;
+ * `onStartTour` reopens the guided tour.
  */
 export function HelpDialog({
   open,
   onOpenChange,
-}: Readonly<{ open: boolean; onOpenChange: (open: boolean) => void }>) {
+  onStartTour,
+}: Readonly<{
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onStartTour?: () => void;
+}>) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
@@ -59,6 +93,41 @@ export function HelpDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
+          <div>
+            <H4>Getting started</H4>
+            <ul className="mt-1 list-disc space-y-1 pl-4 wf-text-small text-wf-ink-soft">
+              {GETTING_STARTED.map((item) => (
+                <li key={item.label}>
+                  <span className="font-semibold text-wf-ink">
+                    {item.label}
+                  </span>
+                  {" — "}
+                  {item.text}
+                </li>
+              ))}
+            </ul>
+            <ul className="mt-2 list-disc space-y-1 pl-4 wf-text-small text-wf-ink-soft">
+              {SHORTCUTS.map((item) => (
+                <li key={item.label}>
+                  <span className="font-semibold text-wf-ink">{item.keys}</span>
+                  {" — "}
+                  {item.label}
+                </li>
+              ))}
+            </ul>
+            {onStartTour ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={onStartTour}
+              >
+                <PlayIcon />
+                Replay tour
+              </Button>
+            ) : null}
+          </div>
+
           {FIELDS.map((field) => (
             <div key={field.title}>
               <H4>{field.title}</H4>

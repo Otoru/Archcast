@@ -30,7 +30,7 @@ import { useSimulateWorker } from "@/components/flow/use-simulate-worker";
 import { buildGraph } from "@/components/flow/validate-graph";
 import type { ChallengeParams, Verdict } from "@/engine";
 
-/** Shape aplicável: nós + arestas (RF) + params. Mesmo shape do `LoadedGraph` (grafo carregado). */
+/** Applicable shape: nodes + edges (RF) + params. Same shape as `LoadedGraph` (loaded graph). */
 export type ApplyableGraph = LoadedGraph;
 
 export type FlowEditorState = {
@@ -43,10 +43,11 @@ export type FlowEditorState = {
   selectedNodeId: string | null;
   setSelectedNodeId: Dispatch<SetStateAction<string | null>>;
   /**
-   * Contador que incrementa a cada clique em um nó no canvas — mesmo quando o
-   * nó clicado já era o selecionado. A shell observa isto para reabrir o
-   * inspector na seção de atributos a cada clique (mudar só `selectedNodeId`
-   * não dispararia, já que clicar no mesmo nó não muda o id).
+   * Counter that increments on every click on a canvas node — even when the
+   * clicked node was already the selected one. The shell observes this to
+   * reopen the inspector's attributes section on every click (changing only
+   * `selectedNodeId` would not fire, since clicking the same node does not
+   * change the id).
    */
   nodeClickNonce: number;
   notifyNodeClick: () => void;
@@ -55,19 +56,19 @@ export type FlowEditorState = {
   verdict: Verdict | null;
   verdictError: string | null;
   /**
-   * Modo run ativo: estrutura travada, edges com efeito, veredito recalcula a
-   * cada mudança de attrs. `false` em idle ou após Stop (veredito congelado).
+   * Active run mode: structure locked, edges with effects, verdict recalculates
+   * on every attr change. `false` when idle or after Stop (frozen verdict).
    */
   running: boolean;
-  /** True durante a computação do veredito no worker (spinner do botão). */
+  /** True while the verdict is being computed in the worker (button spinner). */
   computing: boolean;
   startRun: () => void;
   stopRun: () => void;
-  /** Histórico undo/redo (snapshot completo, incluindo posições). */
+  /** Undo/redo history (full snapshot, including positions). */
   history: HistoryApi;
-  /** Aplica um grafo (nós/arestas/params) de uma vez — usado por undo/redo, loaders e Clear. */
+  /** Applies a graph (nodes/edges/params) at once — used by undo/redo, loaders and Clear. */
   applyGraph: (graph: ApplyableGraph) => void;
-  /** Sinal monótono que dispara `fitView()` no canvas (que está dentro do ReactFlowProvider). */
+  /** Monotonic signal that triggers `fitView()` on the canvas (which is inside the ReactFlowProvider). */
   fitViewSignal: number;
   requestFitView: () => void;
 };
@@ -96,23 +97,24 @@ type FlowEditorProviderProps = {
 };
 
 /**
- * Dono do estado do editor de fluxo: estado do React Flow (nodes/edges +
- * handlers de change), nó selecionado, parâmetros do desafio, veredito da
- * última simulação e modo run (`running`/`computing` + `startRun`/`stopRun`).
- * Envolva a shell inteira (paleta + canvas + inspector) para que todos
- * compartilhem a mesma fonte de verdade — o canvas lê/escreve nodes e edges,
- * o inspector lê/escreve attrs/params, a shell dispara `startRun`/`stopRun`.
+ * Owner of the flow editor state: React Flow state (nodes/edges + change
+ * handlers), selected node, challenge parameters, the verdict from the last
+ * simulation and run mode (`running`/`computing` + `startRun`/`stopRun`).
+ * Wrap the entire shell (palette + canvas + inspector) so that everyone
+ * shares the same source of truth — the canvas reads/writes nodes and edges,
+ * the inspector reads/writes attrs/params, the shell triggers `startRun`/`stopRun`.
  *
- * `useNodesState`/`useEdgesState` são `useState` puro (não precisam de
- * `ReactFlowProvider`); o `useReactFlow()` do canvas continua dentro do
- * provider do RF em `FlowCanvas`, então nada muda lá.
+ * `useNodesState`/`useEdgesState` are plain `useState` (no `ReactFlowProvider`
+ * needed); the canvas's `useReactFlow()` stays inside the RF provider in
+ * `FlowCanvas`, so nothing changes there.
  *
- * A simulação roda num **web worker** (`useSimulateWorker`) fora da main thread
- * — o spinner (`computing`) aparece antes do bloqueio e grafos grandes não
- * travam a UI. `buildGraph` fica na main thread (barato, já calculado por
- * render na validação ao vivo). O histórico (`useEditorHistory`) snapshotia o
- * grafo completo (com posições) e expõe undo/redo; `applyGraph` é a entrada
- * única para undo/redo, loaders (import/preset/share) e Clear.
+ * The simulation runs in a **web worker** (`useSimulateWorker`) off the main
+ * thread — the spinner (`computing`) appears before the block and large graphs
+ * do not freeze the UI. `buildGraph` stays on the main thread (cheap, already
+ * computed per render during live validation). The history (`useEditorHistory`)
+ * snapshots the full graph (with positions) and exposes undo/redo; `applyGraph`
+ * is the single entry point for undo/redo, loaders (import/preset/share) and
+ * Clear.
  */
 export function FlowEditorProvider({
   children,
@@ -152,10 +154,10 @@ export function FlowEditorProvider({
   const stopRun = useCallback(() => setRunning(false), []);
   const requestFitView = useCallback(() => setFitViewSignal((n) => n + 1), []);
 
-  // Aplica um grafo (nós/arestas/params) de uma vez. Estável — usado como dep de
-  // undo/redo (useEditorHistory) e pelos loaders/Clear da shell. `setSelected`
-  // não é tocado: o snapshot já vem com `selected:false` (descartado no commit
-  // do histórico / no deserialize), deixando o canvas sem anel após aplicar.
+  // Applies a graph (nodes/edges/params) at once. Stable — used as a dep by
+  // undo/redo (useEditorHistory) and by the shell's loaders/Clear. `setSelected`
+  // is not touched: the snapshot already comes with `selected:false` (dropped
+  // on history commit / on deserialize), leaving the canvas ring-free after applying.
   const applyGraph = useCallback(
     (graph: ApplyableGraph) => {
       setNodes(graph.nodes);
@@ -167,10 +169,10 @@ export function FlowEditorProvider({
 
   const history = useEditorHistory(applyGraph);
 
-  // Assinatura do grafo + params: recálculo ao vivo só dispara quando o que
-  // importa muda (kind/attrs/edges/params). Seleção e posição (que mutam o
-  // array de nodes sem mudar o grafo) NÃO entram na assinatura — evita
-  // recalcular o veredito ao clicar/mover um nó durante o run.
+  // Graph + params signature: live recalculation only fires when what matters
+  // changes (kind/attrs/edges/params). Selection and position (which mutate the
+  // nodes array without changing the graph) are NOT part of the signature —
+  // avoiding recomputing the verdict when clicking/moving a node during a run.
   const runSignature = useMemo(() => {
     const ns = nodes
       .map(
@@ -186,10 +188,11 @@ export function FlowEditorProvider({
     return `${ns}||${es}||${JSON.stringify(params)}`;
   }, [nodes, edges, params]);
 
-  // Worker de simulação: singleton preguiçoso, fallback síncrono em SSR/build/
-  // jsdom. `CycleError` chega como flag `isCycle` (a classe não atravessa a
-  // fronteira de clone estrutural). Os callbacks são lidos via ref no hook, então
-  // sempre veem o estado mais fresco apesar do efeito capturar `run` (estável).
+  // Simulation worker: lazy singleton, synchronous fallback in SSR/build/
+  // jsdom. `CycleError` arrives as an `isCycle` flag (the class does not cross
+  // the structured-clone boundary). Callbacks are read via ref in the hook, so
+  // they always see the freshest state even though the effect captures `run`
+  // (which is stable).
   const simulateWorker = useSimulateWorker({
     onResult: (next) => {
       setVerdict(next);
@@ -207,18 +210,19 @@ export function FlowEditorProvider({
     onSettled: () => setComputing(false),
   });
 
-  // Recálculo ao vivo: enquanto `running`, qualquer mudança na assinatura
-  // (edit de attrs, nova estrutura) recalcula o veredito **no worker**.
-  // `setComputing(true)` pinta o spinner antes do postMessage; `onSettled`
-  // desliga. `reqId` no hook descarta resultados de execuções superseded.
-  // CycleError sai do modo run — estrutura inválida não dá pra "rodar".
+  // Live recalculation: while `running`, any change to the signature
+  // (attr edit, new structure) recomputes the verdict **in the worker**.
+  // `setComputing(true)` paints the spinner before the postMessage; `onSettled`
+  // turns it off. `reqId` in the hook discards results from superseded runs.
+  // CycleError exits run mode — invalid structure cannot be "run".
   //
-  // A assinatura (não os arrays crus) é o gatilho: ela exclui seleção/posição,
-  // então clicar ou mover um nó (muta o array de `nodes` mas não o grafo) NÃO
-  // dispara recálculo. Grafo e params ficam em refs (sempre frescos, lidos só
-  // quando o efeito dispara). O guard `lastPostedSigRef` evita postar de novo
-  // pra a mesma assinatura (ex.: Stop→Run sem edits) — o veredito exibido já é
-  // o correto praquela assinatura, então re-postar seria trabalho descartável.
+  // The signature (not the raw arrays) is the trigger: it excludes
+  // selection/position, so clicking or moving a node (mutates the `nodes`
+  // array but not the graph) does NOT trigger recalculation. Graph and params
+  // are kept in refs (always fresh, read only when the effect fires). The
+  // `lastPostedSigRef` guard avoids re-posting for the same signature (e.g.
+  // Stop→Run with no edits) — the displayed verdict is already correct for
+  // that signature, so re-posting would be wasted work.
   const { run: runSim } = simulateWorker;
   const graphRef = useRef<ReturnType<typeof buildGraph>>(
     buildGraph(nodes, edges),
@@ -239,11 +243,11 @@ export function FlowEditorProvider({
     runSim(graphRef.current, paramsRef.current);
   }, [running, runSignature, runSim]);
 
-  // Observador do histórico: a cada mudança real em nodes/edges/params, agenda
-  // um commit debounced (rajadas de arraste coalescem num passo). `commit`
-  // descarta echoes (pós-apply/undo/restore o snapshot é idêntico ao present) e
-  // mudanças só de seleção (selected é descartado do snapshot) — então não há
-  // passo fantasma. O mount vira baseline (presentRef null → sem push).
+  // History observer: on every real change to nodes/edges/params, schedules a
+  // debounced commit (bursts of drags coalesce into one step). `commit` drops
+  // echoes (post-apply/undo/restore the snapshot is identical to present) and
+  // selection-only changes (selected is dropped from the snapshot) — so there
+  // is no phantom step. Mount becomes the baseline (presentRef null → no push).
   const { pushHistory } = history;
   useEffect(() => {
     pushHistory({ nodes, edges, params });
@@ -305,5 +309,5 @@ export function FlowEditorProvider({
   );
 }
 
-// Re-exportado pra consumidores que montam snapshots de GraphDocument.
+// Re-exported for consumers that build GraphDocument snapshots.
 export type { GraphDocument } from "@/components/flow/graph-serialization";

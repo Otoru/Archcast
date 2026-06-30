@@ -6,14 +6,14 @@ import { RunStateContext } from "@/components/flow/block-node";
 import { strokeByMagnitude } from "@/components/flow/flow-edge-style";
 
 /**
- * Edge custom do modo run: deriva cor e espessura do `RunStateContext`
- * (magnitude do fluxo normalizada pelo pico do grafo) e anima o tracejado
- * quando o run está ativo e há fluxo. Edge cuja origem está saturada fica
- * `--wf-destructive` (edge "quente"). Sem veredito (idle), renderiza a edge
- * neutra — visual compatível com o default do React Flow.
+ * Custom edge for run mode: derives color and thickness from `RunStateContext`
+ * (flow magnitude normalized by the graph's peak) and animates the dash when
+ * the run is active and there is flow. An edge whose source is saturated
+ * becomes `--wf-destructive` ("hot" edge). With no verdict (idle), it renders
+ * the neutral edge — a visual compatible with React Flow's default.
  *
- * O canal da edge continua codificado nos handles (`out-read` → `in-read`),
- * igual às edges default; nada muda no modelo, só no visual.
+ * The edge's channel remains encoded in the handles (`out-read` → `in-read`),
+ * same as default edges; nothing changes in the model, only in the visual.
  */
 export function FlowEdge({
   id,
@@ -36,7 +36,7 @@ export function FlowEdge({
 
   const edgeState = runState.edgeStateById.get(id);
 
-  // Idle (sem veredito) ou edge sem fluxo registrado: edge neutra.
+  // Idle (no verdict) or edge with no recorded flow: neutral edge.
   if (!runState.hasVerdict || !edgeState) {
     return (
       <BaseEdge
@@ -47,16 +47,17 @@ export function FlowEdge({
     );
   }
 
-  // O vermelho de saturação é alarme "ao vivo": só durante o run. Ao apertar
-  // Stop, a edge volta à cor neutra por magnitude (o veredito segue congelado
-  // no painel, mas o alarme some — igual à borda vermelha do nó).
+  // The saturation red is a "live" alarm: only during the run. On pressing
+  // Stop, the edge returns to the neutral color by magnitude (the verdict
+  // stays frozen in the panel, but the alarm disappears — same as the node's
+  // red border).
   const saturatedNow = runState.running && edgeState.saturated;
   const stroke = saturatedNow
     ? "var(--color-wf-destructive)"
     : strokeByMagnitude(edgeState.magnitude);
   const strokeWidth = saturatedNow ? 2.5 : 1.5 + edgeState.magnitude * 1.5;
-  // Anima o tracejado só no modo run ativo (parado/frozen mantém a cor, sem
-  // movimento — o "congelamento" do Stop).
+  // Animates the dash only in active run mode (stopped/frozen keeps the
+  // color, no movement — the "freezing" of Stop).
   const animated = runState.running && edgeState.flow > 0;
 
   return (

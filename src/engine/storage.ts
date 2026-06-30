@@ -9,9 +9,9 @@ import type {
 } from "@/engine/types";
 
 export interface StorageUsage {
-  /** Volume acumulado no nó (GB), worst-case. */
+  /** Accumulated volume at the node (GB), worst-case. */
   usedGB: number;
-  /** Capacidade do nó (GB) = `maxStorage` (sem `× instances`). */
+  /** Node capacity (GB) = `maxStorage` (without `× instances`). */
   capGB: number;
 }
 
@@ -24,10 +24,10 @@ const BYTES_PER_GB = 1024 ** 3;
 const SECONDS_PER_DAY = 86_400;
 
 /**
- * Formata um volume em GB pra a unidade legível mais próxima (GB/TB/PB), com no
- * máximo uma casa decimal. Ex.: `393854424.5` → `"375.6 PB"`, `8.2` → `"8.2 GB"`,
- * `500` → `"500 GB"`. Usado no `detail` da violação de storage e no painel de
- * nós (tabela de veredito).
+ * Formats a volume in GB to the closest readable unit (GB/TB/PB), with at most
+ * one decimal place. E.g. `393854424.5` → `"375.6 PB"`, `8.2` → `"8.2 GB"`,
+ * `500` → `"500 GB"`. Used in the storage violation `detail` and in the node
+ * panel (verdict table).
  */
 export function formatStorage(gb: number): string {
   const units = ["GB", "TB", "PB"];
@@ -42,23 +42,25 @@ export function formatStorage(gb: number): string {
 }
 
 /**
- * Checa perda de dados: para cada nó com `maxStorage`, estima o volume
- * acumulado na janela de retenção (`stored = writeFlow × bytesPerWrite ×
- * retention`) e compara com o cap (`maxStorage`). Overflow → violação dura
- * de `storage` (derruba o `passed`).
+ * Checks for data loss: for each node with `maxStorage`, estimates the volume
+ * accumulated over the retention window (`stored = writeFlow × bytesPerWrite ×
+ * retention`) and compares it against the cap (`maxStorage`). Overflow → hard
+ * `storage` violation (brings down `passed`).
  *
- * Modelo de equilíbrio, sem tick-state: assume a taxa de escrita recebida pelo
- * nó sustentada por toda a retenção (upper bound conservador). `writeFlow` já
- * reflete o `readWriteRatio` — o `propagate` faz o split na origem e propaga
- * pelo canal `write`, então o ratio entra de graça (não re-aplicar aqui).
+ * Equilibrium model, no tick-state: assumes the write rate received by the
+ * node is sustained over the whole retention (conservative upper bound).
+ * `writeFlow` already reflects `readWriteRatio` — `propagate` does the split
+ * at the origin and propagates it through the `write` channel, so the ratio
+ * is already included for free (do not re-apply it here).
  *
- * `instances` NÃO escala o cap: réplicas do banco servem pra diminuir load e
- * tirar SPOF (já modelado em `distributedCapacity`/`effectiveAvailability`), não
- * pra dar espaço — o dataset inteiro tem que caber numa instância.
+ * `instances` does NOT scale the cap: db replicas exist to reduce load and
+ * remove SPOFs (already modeled in `distributedCapacity`/
+ * `effectiveAvailability`), not to provide space — the entire dataset must
+ * fit in a single instance.
  *
- * Desligada se `bytesPerWrite` está ausente/0 (challenge sem preocupação de
- * volume). `usage` é populado para todos os nós com `maxStorage > 0` (mesmo os
- * OK) pra o painel mostrar o quanto está sendo usado.
+ * Disabled when `bytesPerWrite` is missing/0 (challenge with no volume
+ * concern). `usage` is populated for every node with `maxStorage > 0` (even
+ * the OK ones) so the panel can show how much is being used.
  */
 export function checkStorage(
   graph: Graph,
@@ -103,9 +105,9 @@ export function checkStorage(
 }
 
 /**
- * Carimba `storageUsed`/`storageCap` nos `NodeResult`s a partir do `usage` da
- * checagem. Shallow: cria uma cópia por nó só quando há uso a registrar (pra
- * não mutar o mapa de resultados do engine nem alocar sem necessidade).
+ * Stamps `storageUsed`/`storageCap` onto `NodeResult`s from the check `usage`.
+ * Shallow: creates a per-node copy only when there is usage to record (so it
+ * does not mutate the engine result map nor allocate unnecessarily).
  */
 export function stampStorageUsage(
   nodeResults: Record<string, NodeResult>,

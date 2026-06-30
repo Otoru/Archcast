@@ -1,8 +1,8 @@
 import "@testing-library/jest-dom";
 
-// jsdom não implementa ResizeObserver nem retorna dimensões reais em
-// getBoundingClientRect. React Flow v12 depende disso para medir o canvas.
-// Polyfills globais para que testes unitários futuros do fluxo rodem.
+// jsdom does not implement ResizeObserver nor return real dimensions from
+// getBoundingClientRect. React Flow v12 depends on these to measure the canvas.
+// Global polyfills so future flow unit tests can run.
 if (typeof globalThis.ResizeObserver === "undefined") {
   class ResizeObserverStub {
     observe(): void {}
@@ -11,6 +11,26 @@ if (typeof globalThis.ResizeObserver === "undefined") {
   }
   globalThis.ResizeObserver =
     ResizeObserverStub as unknown as typeof ResizeObserver;
+}
+
+// jsdom does not implement the native <dialog> element's imperative API, which
+// base-ui's Dialog and our tour Popover rely on. Stub show/showModal/close so
+// dialog-based components render in jsdom unit tests.
+if (
+  typeof HTMLDialogElement !== "undefined" &&
+  typeof HTMLDialogElement.prototype.show !== "function"
+) {
+  HTMLDialogElement.prototype.show = function show(this: HTMLDialogElement) {
+    this.open = true;
+  };
+  HTMLDialogElement.prototype.showModal = function showModal(
+    this: HTMLDialogElement,
+  ) {
+    this.open = true;
+  };
+  HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
+    this.open = false;
+  };
 }
 
 if (

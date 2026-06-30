@@ -6,10 +6,10 @@ import type { EdgeChannel, Graph } from "@/engine/types";
 const CHANNELS: readonly EdgeChannel[] = ["read", "write", "async"];
 
 /**
- * Extrai o `EdgeChannel` codificado no `id` de um Handle (`in-read`,
- * `out-write`, `out-async`...). Devolve `undefined` se o handle não existir
- * ou o sufixo não for um canal válido — sinalizando uma conexão que não
- * pertence ao modelo do motor.
+ * Extracts the `EdgeChannel` encoded in a Handle's `id` (`in-read`,
+ * `out-write`, `out-async`...). Returns `undefined` if the handle does not
+ * exist or the suffix is not a valid channel — signaling a connection that
+ * does not belong to the engine's model.
  */
 export function channelFromHandle(
   handleId: string | null | undefined,
@@ -27,10 +27,10 @@ export function channelFromHandle(
 }
 
 /**
- * Traduz o estado do React Flow para o `Graph` do motor: RF node →
- * `NodeInstance` (kind em `data.kind`), RF edge → `Edge` (canal derivado do
- * `sourceHandle`). Arestas cujo canal não resolvable são descartadas — elas
- * não representam um fluxo modelado e não devem ir à validação.
+ * Translates React Flow state into the engine's `Graph`: RF node →
+ * `NodeInstance` (kind in `data.kind`), RF edge → `Edge` (channel derived
+ * from `sourceHandle`). Edges whose channel cannot be resolved are discarded
+ * — they do not represent a modeled flow and should not go to validation.
  */
 export function buildGraph(nodes: BlockNodeType[], edges: Edge[]): Graph {
   return {
@@ -57,13 +57,13 @@ export function buildGraph(nodes: BlockNodeType[], edges: Edge[]): Graph {
 }
 
 /**
- * Decide se uma conexão em andamento pode ser completada, consultando os
- * presets dos nós envolvidos — usado pelo `isValidConnection` do React Flow
- * para recusar o drop (linha vermelha) **antes** de criar a aresta.
+ * Decides whether an in-progress connection can be completed, consulting the
+ * presets of the involved nodes — used by React Flow's `isValidConnection`
+ * to reject the drop (red line) **before** the edge is created.
  *
- * Regras: sem self-loop; canal do source (`out-foo`) deve existir e igualar o
- * do target (`in-foo`); ambos os presets devem existir; o canal deve estar em
- * `fromPreset.edges.out` E em `toPreset.edges.in`.
+ * Rules: no self-loop; the source channel (`out-foo`) must exist and match the
+ * target's (`in-foo`); both presets must exist; the channel must be in
+ * `fromPreset.edges.out` AND in `toPreset.edges.in`.
  */
 export function isConnectionValid(
   connection: Connection | Edge,
@@ -99,9 +99,9 @@ export function isConnectionValid(
 }
 
 /**
- * Encontra o conjunto de nós que participam de um ciclo via SCC de Tarjan
- * (componentes fortemente conexos de tamanho ≥ 2 = ciclo). Self-loops
- * (`from === to`) também marcam o nó. O(V+E), suficiente para um canvas.
+ * Finds the set of nodes that participate in a cycle via Tarjan's SCC
+ * (strongly connected components of size ≥ 2 = a cycle). Self-loops
+ * (`from === to`) also mark the node. O(V+E), sufficient for a canvas.
  */
 function findCycleNodeIds(graph: Graph): Set<string> {
   const ids = graph.nodes.map((node) => node.id);
@@ -129,7 +129,7 @@ function findCycleNodeIds(graph: Graph): Set<string> {
 
     for (const w of adj.get(v) ?? []) {
       if (w === v) {
-        cyclic.add(v); // self-loop explícito
+        cyclic.add(v); // explicit self-loop
         continue;
       }
       if (!indexMap.has(w)) {
@@ -166,11 +166,11 @@ function findCycleNodeIds(graph: Graph): Set<string> {
 }
 
 /**
- * Conjunto de nós a marcar como inválidos no canvas: (1) nós-fonte de arestas
- * estruturalmente inválidas segundo o motor (`validateEdges`, rede de
- * segurança — normalmente vazio porque `isValidConnection` já bloqueou o
- * drop) e (2) nós que participam de um ciclo. Derivação pura, sem efeitos
- * colaterais — segura para rodar num `useMemo` a cada mudança de estado.
+ * Set of nodes to mark as invalid on the canvas: (1) source nodes of edges
+ * that are structurally invalid per the engine (`validateEdges`, safety net —
+ * usually empty because `isValidConnection` already blocked the drop) and
+ * (2) nodes that participate in a cycle. Pure derivation, no side effects —
+ * safe to run in a `useMemo` on every state change.
  */
 export function findInvalidNodeIds(graph: Graph): Set<string> {
   const invalid = new Set<string>();

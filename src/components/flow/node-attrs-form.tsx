@@ -18,11 +18,12 @@ import { DEFAULT_INSTANCES, getPreset } from "@/engine";
 const INSTANCES_KEY = "instances";
 
 /**
- * Attrs que são razões (0–1) e por isso renderizam como slider, não como
- * `<Input type="number">`. `step` acomoda a granularidade de cada um;
- * `decimals` é a precisão do valor exibido em porcentagem (ex.: 0.85 → "85%").
- * `min`/`max` opcionais restringem o intervalo — `availability` vive no esquema
- * 99%–100% (99.00%–100.00%, 2 casas), igual ao SLO de Availability dos params.
+ * Attrs that are ratios (0–1) and therefore render as a slider, not as an
+ * `<Input type="number">`. `step` accommodates each one's granularity;
+ * `decimals` is the precision of the value displayed as a percentage
+ * (e.g. 0.85 → "85%"). Optional `min`/`max` constrain the range —
+ * `availability` lives in the 99%–100% range (99.00%–100.00%, 2 decimals),
+ * matching the Availability SLO of the params.
  */
 const RATIO_ATTRS: Record<
   string,
@@ -213,9 +214,10 @@ export function NodeAttrsForm({
 }
 
 /**
- * Título dinâmico para a seção "Node" do accordion do inspector: mostra o
- * rótulo do preset do nó selecionado (ex.: "App Server") e, sem seleção, cai
- * para "Node". Lê `selectedNodeId`/`nodes` do `FlowEditorProvider`.
+ * Dynamic title for the "Node" section of the inspector's accordion: shows
+ * the preset label of the selected node (e.g. "App Server") and, with no
+ * selection, falls back to "Node". Reads `selectedNodeId`/`nodes` from the
+ * `FlowEditorProvider`.
  */
 export function NodeAccordionLabel() {
   const { nodes, selectedNodeId } = useFlowEditor();
@@ -228,9 +230,9 @@ export function NodeAccordionLabel() {
 }
 
 /**
- * Inspector conectado ao estado do editor: lê `selectedNodeId`/`nodes` do
- * `FlowEditorProvider` e escreve overrides de attrs de volta no nó selecionado
- * via `setNodes`.
+ * Inspector connected to the editor state: reads `selectedNodeId`/`nodes`
+ * from the `FlowEditorProvider` and writes attr overrides back to the
+ * selected node via `setNodes`.
  */
 export function NodeAttrsFormConnected() {
   const { nodes, setNodes, selectedNodeId } = useFlowEditor();

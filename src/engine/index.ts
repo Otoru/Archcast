@@ -45,12 +45,12 @@ function consolidateNodeResults(
 }
 
 /**
- * Escolhe o tick que determina o p99 de latência reportado, para que o
- * `Verdict.nodes`/`edgeFlows` reflitam o MESMO momento que produz o
- * `weightedP99Latency` — e não o último tick (que, no perfil spiky, é o estado
- * calmo pós-burst). Por construção `weightedP99Latency` retorna o
- * `endToEndLatency` de algum tick (`simulate.ts`), então a igualdade direta
- * resolve; caem em fallback robusto para Infinity/empate.
+ * Picks the tick that determines the reported latency p99, so that
+ * `Verdict.nodes`/`edgeFlows` reflect the SAME moment that produces the
+ * `weightedP99Latency` — not the last tick (which, in the spiky profile, is the
+ * calm post-burst state). By construction `weightedP99Latency` returns the
+ * `endToEndLatency` of some tick (`simulate.ts`), so a direct equality match
+ * resolves it; falls back to a robust fallback for Infinity/ties.
  */
 function pickP99Tick(sim: SimulationResult): TickResult {
   const ticks = sim.ticks;
@@ -62,7 +62,7 @@ function pickP99Tick(sim: SimulationResult): TickResult {
   if (match) {
     return match;
   }
-  // Fallback: tick de maior latência finita (mesma cauda que o p99 captura).
+  // Fallback: tick with the highest finite latency (same tail the p99 captures).
   const finite = ticks.filter((tick) => Number.isFinite(tick.endToEndLatency));
   if (finite.length > 0) {
     return finite.reduce(
@@ -70,17 +70,17 @@ function pickP99Tick(sim: SimulationResult): TickResult {
       finite[0],
     );
   }
-  // `ticks` é não-vazio (guarda no topo), então `.at(-1)` nunca é undefined.
+  // `ticks` is non-empty (guard at the top), so `.at(-1)` is never undefined.
   return ticks.at(-1) as TickResult;
 }
 
 /**
- * Reduz os ticks do perfil spiky/diurnal pelo pico de fluxo de escrita por
- * edge — o pior caso de volume armazenado. NÃO usa o `p99Tick` (que é o tick
- * de pico de LATÊNCIA); o pico de escrita pode cair num tick diferente, e a
- * checagem de perda de dados quer o volume máximo acumulado, não o momento do
- * burst de latência. As demais componentes do flow (read/async) são zeradas —
- * só o canal `write` importa pra storage.
+ * Reduces the ticks of the spiky/diurnal profile to the peak write flow per
+ * edge — the worst case for stored volume. Does NOT use `p99Tick` (which is
+ * the LATENCY peak tick); the write peak may fall on a different tick, and the
+ * data loss check wants the maximum accumulated volume, not the latency burst
+ * moment. The other flow components (read/async) are zeroed — only the `write`
+ * channel matters for storage.
  */
 function peakWriteEdgeFlows(sim: SimulationResult): Record<string, Flow> {
   const peaks: Record<string, Flow> = {};
@@ -122,14 +122,14 @@ export function runSimulation(
     const systemAvailability = computeSystemAvailability(graph);
     const presenceViolations = checkPresence(graph, params);
     const spofViolations = detectSpof(graph);
-    // Consolida a partir do tick que determina o p99 (o momento de burst que
-    // produz `weightedP99Latency`), não do último tick (calmo pós-burst) —
-    // assim `nodes`/`edgeFlows` e o `Latency p99` do veredito olham o mesmo
-    // instante e o painel de nós bate com o veredito por construção.
+    // Consolidate from the tick that determines the p99 (the burst moment that
+    // produces `weightedP99Latency`), not the last tick (calm post-burst) —
+    // so `nodes`/`edgeFlows` and the verdict's `Latency p99` look at the same
+    // instant, and the node panel matches the verdict by construction.
     const p99Tick = pickP99Tick(sim);
     const lastEdgeFlows = p99Tick.edgeFlows;
-    // Storage usa o pico de escrita entre os ticks (pior caso de volume
-    // acumulado), não o tick-p99 de latência — ver `peakWriteEdgeFlows`.
+    // Storage uses the peak write across ticks (worst case of accumulated
+    // volume), not the latency p99 tick — see `peakWriteEdgeFlows`.
     const storage = checkStorage(
       graph,
       params,

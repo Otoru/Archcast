@@ -12,7 +12,7 @@ import {
 
 const nodeTypes = { block: BlockNode };
 
-/** Renderiza um único BlockNode num ReactFlow mínimo (jsdom polyfillado). */
+/** Renders a single BlockNode in a minimal ReactFlow (polyfilled jsdom). */
 function renderNode(kind: string, invalidIds?: Set<string>): HTMLElement {
   const node: BlockNodeType = {
     id: "n1",

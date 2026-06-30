@@ -67,13 +67,14 @@ function hasPathSourceToSink(graph: Graph, excludeNodeId?: string): boolean {
     return true;
   }
 
-  // Sinks derivados do grafo ORIGINAL (os destinos pretendidos), não
-  // recomputados após a remoção. Antes, remover um nó fazia o predecessor
-  // cuja única saída era esse nó virar um "sink" falso — e como ele continuava
-  // alcançável a partir da fonte, o algoritmo entendia "caminho intacto" e não
-  // flaggeava SPOF (ex.: um LB logo atrás de um WAF: remover o LB deixava o
-  // WAF como dead-end alcançável, então o LB não era SPOF). Com os sinks
-  // originais, remover o LB deixa o sink real (ex.: db) inalcançável → SPOF.
+  // Sinks derived from the ORIGINAL graph (the intended destinations), not
+  // recomputed after removal. Before, removing a node made the predecessor
+  // whose only output was that node become a fake "sink" — and since it
+  // remained reachable from the source, the algorithm understood "path intact"
+  // and did not flag a SPOF (e.g. an LB right behind a WAF: removing the LB
+  // left the WAF as a reachable dead-end, so the LB wasn't a SPOF). With the
+  // original sinks, removing the LB leaves the real sink (e.g. db) unreachable
+  // → SPOF.
   const sinks = getSinkNodes(graph).filter((id) => id !== excludeNodeId);
   if (sinks.length === 0) {
     return true;

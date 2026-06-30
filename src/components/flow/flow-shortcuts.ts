@@ -9,8 +9,8 @@ import {
 import type { HistoryApi } from "@/components/flow/use-editor-history";
 
 /**
- * Estado/ações que os atalhos de teclado consomem. É um snapshot lido por
- * referência no `flow-shell` para o listener ver sempre o estado fresco.
+ * State/actions consumed by keyboard shortcuts. This is a snapshot read by
+ * reference in `flow-shell` so the listener always sees fresh state.
  */
 export interface ShortcutHandlers {
   running: boolean;
@@ -24,7 +24,7 @@ export interface ShortcutHandlers {
   setHelpOpen: (open: boolean) => void;
 }
 
-/** Descrição mínima da tecla pressionada (desacoplada do KeyboardEvent do DOM). */
+/** Minimal description of the pressed key (decoupled from the DOM KeyboardEvent). */
 export interface ShortcutKey {
   key: string;
   mod: boolean;
@@ -32,10 +32,10 @@ export interface ShortcutKey {
 }
 
 /**
- * Despacha um atalho de teclado. Retorna `true` se a tecla foi consumida (o
- * chamador então dá `preventDefault`), `false` caso contrário. Lógica pura,
- * testável sem DOM — o `flow-shell` só traduz o `KeyboardEvent` em
- * `ShortcutKey` e registra o listener.
+ * Dispatches a keyboard shortcut. Returns `true` if the key was consumed (the
+ * caller then calls `preventDefault`), `false` otherwise. Pure logic,
+ * testable without the DOM — `flow-shell` only translates the `KeyboardEvent`
+ * into a `ShortcutKey` and registers the listener.
  */
 export function handleShortcutKey(
   k: ShortcutKey,

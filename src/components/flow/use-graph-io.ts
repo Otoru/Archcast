@@ -9,20 +9,20 @@ import {
 } from "@/components/flow/graph-serialization";
 
 export type GraphIO = {
-  /** Serializa o grafo atual e baixa `archcast-graph.json`. */
+  /** Serializes the current graph and downloads `archcast-graph.json`. */
   exportGraph: () => void;
-  /** Abre um seletor de arquivo; carrega o JSON escolhido (undoable via onLoad). */
+  /** Opens a file picker; loads the chosen JSON (undoable via onLoad). */
   importGraph: () => void;
 };
 
 /**
- * I/O de grafo via arquivo: export e import de JSON. Um `GraphDocument` (plano,
- * serializável, via `graph-serialization`) é o que `getSnapshot` devolve e o que
- * `exportGraph` escreve; `deserializeGraph` faz a ponte plano→`LoadedGraph`
- * (shape RF, pronto pra `applyGraph`) no import, validando cada `kind`.
- * `onLoad` é a callback de aplicação user-initiated: a toolbar passa uma função
- * que faz apply + fitView (vira um passo de undo naturalmente via o efeito
- * observador do histórico).
+ * File-based graph I/O: JSON export and import. A `GraphDocument` (flat,
+ * serializable, via `graph-serialization`) is what `getSnapshot` returns and
+ * what `exportGraph` writes; `deserializeGraph` bridges flat→`LoadedGraph`
+ * (RF shape, ready for `applyGraph`) on import, validating each `kind`.
+ * `onLoad` is the user-initiated apply callback: the toolbar passes a function
+ * that does apply + fitView (becomes a natural undo step via the history
+ * observer effect).
  */
 export function useGraphIO(
   getSnapshot: () => GraphDocument,
@@ -73,5 +73,5 @@ export function useGraphIO(
   return { exportGraph, importGraph };
 }
 
-// Re-exporta a serialização pra quem usa I/O precisar montar snapshots.
+// Re-exports serialization so I/O consumers can build snapshots.
 export { serializeGraph } from "@/components/flow/graph-serialization";

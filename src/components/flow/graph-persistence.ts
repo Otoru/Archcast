@@ -10,12 +10,12 @@ import type { ChallengeParams } from "@/engine";
 const STORAGE_KEY = "wireframe:graph";
 
 /**
- * Lê o último grafo salvo do localStorage. Retorna null se nada salvo, se
- * estamos no SSR, ou se o conteúdo está corrompido (parse/shape inválido) —
- * nunca lança; o editor parte do canvas vazio nesse caso.
+ * Reads the last saved graph from localStorage. Returns null if nothing is
+ * saved, if we're in SSR, or if the content is corrupt (invalid parse/shape) —
+ * never throws; the editor starts from an empty canvas in that case.
  */
 export function readStoredGraph(): LoadedGraph | null {
-  if (typeof globalThis.window === "undefined") {
+  if (globalThis.window === undefined) {
     return null;
   }
   let raw: string | null;
@@ -34,26 +34,26 @@ export function readStoredGraph(): LoadedGraph | null {
   }
 }
 
-/** Salva o grafo no localStorage. Tudo em try/catch — quota/private mode nunca quebram o editor. */
+/** Saves the graph to localStorage. Everything in try/catch — quota/private mode never break the editor. */
 export function writeStoredGraph(
   nodes: BlockNodeType[],
   edges: Edge[],
   params: ChallengeParams,
 ): void {
-  if (typeof globalThis.window === "undefined") {
+  if (globalThis.window === undefined) {
     return;
   }
   try {
     const doc = serializeGraph(nodes, edges, params);
     globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify(doc));
   } catch {
-    // quota cheia / modo privado — silencioso.
+    // quota full / private mode — silent.
   }
 }
 
-/** Remove o grafo salvo (usado pelo Clear pra um reset limpo). */
+/** Removes the saved graph (used by Clear for a clean reset). */
 export function clearStoredGraph(): void {
-  if (typeof globalThis.window === "undefined") {
+  if (globalThis.window === undefined) {
     return;
   }
   try {

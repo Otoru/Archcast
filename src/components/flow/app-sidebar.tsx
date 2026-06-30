@@ -40,17 +40,21 @@ const LAYER_META: { layer: Layer; label: string; icon: LucideIcon }[] = [
 ];
 
 /**
- * Paleta de blocos do workflow: lista os presets do `BLOCK_CATALOG`
- * agrupados por camada, com um cabeçalho fixo de busca que filtra os blocos
- * pelo rótulo. Cada item é arrastável para o canvas, que cria um nó daquele
- * kind na posição do drop.
+ * Workflow block palette: lists the `BLOCK_CATALOG` presets grouped by layer,
+ * with a fixed search header that filters blocks by label. Each item is
+ * draggable onto the canvas, which creates a node of that kind at the drop
+ * position.
  */
 export function AppSidebar() {
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
 
   return (
-    <Sidebar collapsible="offcanvas" className="!border-r-2 !border-wf-border">
+    <Sidebar
+      collapsible="offcanvas"
+      className="!border-r-2 !border-wf-border"
+      data-tour="palette"
+    >
       <SidebarHeader>
         <div className="relative">
           <Search

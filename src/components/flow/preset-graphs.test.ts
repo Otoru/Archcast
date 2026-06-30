@@ -6,12 +6,12 @@ import { runSimulation } from "@/engine";
 import { createDefaultRegistry } from "@/engine/registry";
 
 /**
- * Guarda de regressão: cada preset do menu "Presets" é uma topologia de
- * produção sadia que PASSA o desafio padrão (1000 rps / SLO 200ms p99 / 99,9%
- * disponibilidade). Carrega pelo caminho real (`deserializeGraph` →
- * `buildGraph`) e roda o motor — pega quebras quando o modelo muda (ex.: o
- * gating de `instances` por distribuidor, que derrubou Queue+Workers antes de
- * `message-queue` ser marcado como distribuidor).
+ * Regression guard: each "Presets" menu entry is a healthy production topology
+ * that PASSES the default challenge (1000 rps / 200ms p99 SLO / 99.9%
+ * availability). Loads via the real path (`deserializeGraph` → `buildGraph`)
+ * and runs the engine — catches breakages when the model changes (e.g. the
+ * `instances` gating by dispatcher, which broke Queue+Workers before
+ * `message-queue` was marked as a dispatcher).
  */
 describe("preset graphs", () => {
   const registry = createDefaultRegistry();
