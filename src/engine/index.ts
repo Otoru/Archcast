@@ -65,8 +65,9 @@ function pickP99Tick(sim: SimulationResult): TickResult {
   // Fallback: tick de maior latência finita (mesma cauda que o p99 captura).
   const finite = ticks.filter((tick) => Number.isFinite(tick.endToEndLatency));
   if (finite.length > 0) {
-    return finite.reduce((a, b) =>
-      b.endToEndLatency > a.endToEndLatency ? b : a,
+    return finite.reduce(
+      (a, b) => (b.endToEndLatency > a.endToEndLatency ? b : a),
+      finite[0],
     );
   }
   return ticks[ticks.length - 1];
