@@ -41,17 +41,31 @@ describe("onboarding-persistence", () => {
     expect(() => markOnboardingSeen()).not.toThrow();
   });
 
-  it("hasSeen retorna false quando o storage lança (modo privado/cota)", () => {
-    vi.spyOn(globalThis.localStorage, "getItem").mockImplementation(() => {
+  // A storage that always throws (private mode / quota exceeded).
+  const throwingStorage = {
+    getItem(): string {
       throw new Error("quota");
-    });
+    },
+    setItem(): void {
+      throw new Error("quota");
+    },
+    removeItem(): void {
+      throw new Error("quota");
+    },
+    clear(): void {},
+    key(): string | null {
+      throw new Error("quota");
+    },
+    length: 0,
+  };
+
+  it("hasSeen retorna false quando o storage lança (modo privado/cota)", () => {
+    vi.stubGlobal("localStorage", throwingStorage);
     expect(hasSeenOnboarding()).toBe(false);
   });
 
   it("markOnboardingSeen engole erro de escrita (cota cheia)", () => {
-    vi.spyOn(globalThis.localStorage, "setItem").mockImplementation(() => {
-      throw new Error("quota");
-    });
+    vi.stubGlobal("localStorage", throwingStorage);
     expect(() => markOnboardingSeen()).not.toThrow();
   });
 });
