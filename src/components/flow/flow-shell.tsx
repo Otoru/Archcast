@@ -9,18 +9,13 @@ import {
   useState,
 } from "react";
 import { AppSidebar } from "@/components/flow/app-sidebar";
-import {
-  applyClipboardEntry,
-  copySelection,
-  duplicateSelection,
-  pasteSelection,
-} from "@/components/flow/clipboard";
 import { BLOCK_DND_MIME } from "@/components/flow/dnd";
 import {
   FlowEditorProvider,
   useFlowEditor,
 } from "@/components/flow/flow-editor-state";
 import { FlowInspector } from "@/components/flow/flow-inspector";
+import { handleShortcutKey } from "@/components/flow/flow-shortcuts";
 import { FlowToolbar } from "@/components/flow/flow-toolbar";
 import {
   readStoredGraph,
@@ -168,56 +163,22 @@ function ShellLayout() {
     setHelpOpen,
   };
   useEffect(() => {
-    // Mapa de atalhos com modificador (Ctrl/Cmd). Cada handler recebe o
-    // snapshot atual de `shortcutsRef`; o lookup mantém o dispatcher simples.
-    // `z` (undo/redo) fica fora do mapa por depender de `shiftKey`.
-    type Shortcuts = typeof shortcutsRef.current;
-    const modHandlers: Record<string, (s: Shortcuts) => void> = {
-      enter: (s) => (s.running ? s.stopRun() : s.handleRun()),
-      c: (s) => copySelection(s.nodes, s.edges),
-      v: (s) => {
-        if (s.running) return;
-        const entry = pasteSelection();
-        if (entry) {
-          applyClipboardEntry(entry, s.setNodes, s.setEdges);
-        }
-      },
-      d: (s) => {
-        if (s.running) return;
-        const entry = duplicateSelection(s.nodes, s.edges);
-        if (entry) {
-          applyClipboardEntry(entry, s.setNodes, s.setEdges);
-        }
-      },
-    };
     const onKeyDown = (event: KeyboardEvent) => {
-      const s = shortcutsRef.current;
       const target = event.target as HTMLElement | null;
       const tag = target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) {
         return;
       }
-      if (!(event.ctrlKey || event.metaKey)) {
-        if (event.key === "?") {
-          event.preventDefault();
-          s.setHelpOpen(true);
-        }
-        return;
-      }
-      const key = event.key.toLowerCase();
-      if (key === "z") {
+      const consumed = handleShortcutKey(
+        {
+          key: event.key,
+          mod: event.ctrlKey || event.metaKey,
+          shift: event.shiftKey,
+        },
+        shortcutsRef.current,
+      );
+      if (consumed) {
         event.preventDefault();
-        if (event.shiftKey) {
-          s.history.redo();
-        } else {
-          s.history.undo();
-        }
-        return;
-      }
-      const handler = modHandlers[key];
-      if (handler) {
-        event.preventDefault();
-        handler(s);
       }
     };
     globalThis.addEventListener("keydown", onKeyDown);
