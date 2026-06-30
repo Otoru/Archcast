@@ -273,9 +273,10 @@ function Spotlight({ target, placement, title, body, ...nav }: SpotlightProps) {
       />
       {rect ? (
         <>
-          {/* Recorte arredondado: o box-shadow gigante escurece tudo menos o
-              retângulo do alvo. `pointer-events: none` deixa o clique cair no
-              backdrop atrás (fecha o tour) ou no próprio alvo. */}
+          {/* Rounded cutout: the giant box-shadow darkens everything except the
+              target's rectangle. `pointer-events: none` lets the click fall
+              through to the backdrop behind (closes the tour) or onto the target
+              itself. */}
           <div
             aria-hidden="true"
             style={{
@@ -316,12 +317,15 @@ function Popover({
   placement: Placement;
   children: ReactNode;
 }>) {
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLDialogElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
+    // Open as a non-modal dialog (no backdrop, no focus trap, no Esc auto-close)
+    // so the spotlight backdrop and the tour's own Esc handler stay in control.
+    if (!el.open) el.show();
     const pw = el.offsetWidth;
     const ph = el.offsetHeight;
     const vw = globalThis.innerWidth;
@@ -348,21 +352,21 @@ function Popover({
   }, [rect, placement]);
 
   return (
-    <div
+    <dialog
       ref={ref}
-      role="dialog"
       aria-label="Tour"
       className={cn(
         "fixed z-[61] w-72 rounded-wf border-2 border-wf-border bg-wf-surface p-4 shadow-lg",
         !pos && "opacity-0",
       )}
       style={{
+        margin: 0,
         pointerEvents: "auto",
         ...(pos ? { top: pos.top, left: pos.left } : { top: 0, left: 0 }),
       }}
     >
       {children}
-    </div>
+    </dialog>
   );
 }
 
@@ -431,11 +435,10 @@ function useTargetRect(selector: string): DOMRect | null {
       const next = el.getBoundingClientRect();
       setRect((prev) => {
         if (
-          prev &&
-          prev.x === next.x &&
-          prev.y === next.y &&
-          prev.width === next.width &&
-          prev.height === next.height
+          prev?.x === next.x &&
+          prev?.y === next.y &&
+          prev?.width === next.width &&
+          prev?.height === next.height
         ) {
           return prev;
         }

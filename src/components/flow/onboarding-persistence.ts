@@ -6,7 +6,7 @@ const STORAGE_KEY = "wireframe:onboarded";
  * never throws. Same SSR-safe pattern as `graph-persistence.ts`.
  */
 export function hasSeenOnboarding(): boolean {
-  if (typeof globalThis.window === "undefined") {
+  if (globalThis.window === undefined) {
     return false;
   }
   try {
@@ -18,7 +18,7 @@ export function hasSeenOnboarding(): boolean {
 
 /** Marks that the user has already gone through onboarding (don't show the welcome again). */
 export function markOnboardingSeen(): void {
-  if (typeof globalThis.window === "undefined") {
+  if (globalThis.window === undefined) {
     return;
   }
   try {

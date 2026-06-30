@@ -6,8 +6,9 @@ export type ClipboardEntry = {
   edges: Edge[];
 };
 
-// Clipboard de módulo (sem React) — sobrevive entre renders. Não persiste ao
-// refresh (clipboard de SO é async/naível p/ JSON); é o "Ctrl+C/Ctrl+V" interno.
+// Module-level clipboard (no React) — survives across renders. It doesn't
+// persist across refresh (the OS clipboard is async/clunky for JSON); this is
+// the internal "Ctrl+C/Ctrl+V".
 let clipboard: ClipboardEntry | null = null;
 
 function selectedNodes(nodes: BlockNodeType[]): BlockNodeType[] {
@@ -23,9 +24,9 @@ function newIdFor(kind: string): string {
 }
 
 /**
- * Recria a seleção com ids novos, posições deslocadas em (+dx, +dy) e arestas
- * remapeadas. Os novos nós vêm com `selected: true`; o chamador desmarca os
- * antigos no array substituído (para o anel de seleção acompanhar o colado).
+ * Rebuilds the selection with fresh ids, positions offset by (+dx, +dy) and
+ * remapped edges. New nodes come with `selected: true`; the caller deselects
+ * the old ones in the replaced array (so the selection ring follows the paste).
  */
 function rebindSelection(
   entry: ClipboardEntry,
@@ -54,7 +55,7 @@ function rebindSelection(
   return { nodes, edges };
 }
 
-/** Copia nós selecionados + arestas entre eles para o clipboard interno. */
+/** Copies selected nodes + the edges between them into the internal clipboard. */
 export function copySelection(nodes: BlockNodeType[], edges: Edge[]): void {
   const selected = selectedNodes(nodes);
   if (selected.length === 0) {
@@ -67,8 +68,9 @@ export function copySelection(nodes: BlockNodeType[], edges: Edge[]): void {
 }
 
 /**
- * Cola o clipboard com ids novos e offset +20/+20. Retorna null se o clipboard
- * estiver vazio. Novos nós já vêm selecionados; o chamador desmarca os antigos.
+ * Pastes the clipboard with fresh ids and a +20/+20 offset. Returns null if the
+ * clipboard is empty. New nodes arrive already selected; the caller deselects
+ * the old ones.
  */
 export function pasteSelection(): ClipboardEntry | null {
   if (!clipboard) {
@@ -78,8 +80,8 @@ export function pasteSelection(): ClipboardEntry | null {
 }
 
 /**
- * Duplica a seleção atual imediatamente (sem passar pelo clipboard). Offset
- * +20/+20, ids novos. Retorna null se nada estiver selecionado.
+ * Duplicates the current selection in place (bypassing the clipboard).
+ * +20/+20 offset, fresh ids. Returns null if nothing is selected.
  */
 export function duplicateSelection(
   nodes: BlockNodeType[],
@@ -94,16 +96,16 @@ export function duplicateSelection(
   return rebindSelection({ nodes: selected, edges: selectedEdges }, 20, 20);
 }
 
-/** Há algo no clipboard pronto para colar? */
+/** Is there anything in the clipboard ready to paste? */
 export function hasClipboard(): boolean {
   return clipboard !== null;
 }
 
 /**
- * Aplica um `ClipboardEntry` via setters do React Flow: desmarca os nós
- * existentes (o anel de seleção acompanha o colado) e adiciona os novos (já
- * vêm `selected:true`) + as arestas novas. Reutilizado pelo toolbar e pelos
- * atalhos de teclado da shell.
+ * Applies a `ClipboardEntry` via React Flow setters: deselects the existing
+ * nodes (the selection ring follows the paste) and adds the new ones (already
+ * `selected: true`) + the new edges. Reused by the toolbar and the shell's
+ * keyboard shortcuts.
  */
 export function applyClipboardEntry(
   entry: ClipboardEntry,

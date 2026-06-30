@@ -13,6 +13,26 @@ if (typeof globalThis.ResizeObserver === "undefined") {
     ResizeObserverStub as unknown as typeof ResizeObserver;
 }
 
+// jsdom does not implement the native <dialog> element's imperative API, which
+// base-ui's Dialog and our tour Popover rely on. Stub show/showModal/close so
+// dialog-based components render in jsdom unit tests.
+if (
+  typeof HTMLDialogElement !== "undefined" &&
+  typeof HTMLDialogElement.prototype.show !== "function"
+) {
+  HTMLDialogElement.prototype.show = function show(this: HTMLDialogElement) {
+    this.open = true;
+  };
+  HTMLDialogElement.prototype.showModal = function showModal(
+    this: HTMLDialogElement,
+  ) {
+    this.open = true;
+  };
+  HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
+    this.open = false;
+  };
+}
+
 if (
   typeof HTMLDivElement !== "undefined" &&
   typeof HTMLDivElement.prototype.getBoundingClientRect === "function"
