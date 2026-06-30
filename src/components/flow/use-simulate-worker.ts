@@ -54,6 +54,12 @@ export function useSimulateWorker(opts: SimulateWorkerOptions): SimulateWorker {
     if (typeof globalThis.window === "undefined") {
       return null;
     }
+    // jsdom (Vitest) reports `window` and — on Node 24 — a global `Worker`, but
+    // a real worker thread has no `window` and throws asynchronously, surfacing
+    // as an unhandled error. Force the synchronous fallback under jsdom.
+    if (navigator.userAgent.includes("jsdom")) {
+      return null;
+    }
     try {
       const worker = new Worker(
         new URL("../../workers/simulate.worker.ts", import.meta.url),
